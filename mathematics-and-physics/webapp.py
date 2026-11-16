@@ -18,15 +18,18 @@ from questions import BY_ID, select_question
 from storage import Storage
 from tutor import Tutor, LEVEL_NAMES, SUBJECT_NAMES
 from gitea_client import GiteaClient, GiteaError, MAX_FILE_BYTES, validate_path
+from auth import AuthStore, SESSION_SECONDS
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="Engineering AI Lab", docs_url=None, redoc_url=None)
 storage: Storage | None = None
 model: Tutor | None = None
+auth_store: AuthStore | None = None
 
 # For local deployment. Login is deliberately not implemented; session cookies
 # isolate progress, but a public deployment must add authentication and HTTPS.
-COOKIE = "engai_session"
+COOKIE = "engai_auth"
+LEGACY_COOKIE = "engai_session"
 LEVELS = set(LEVEL_NAMES)
 SUBJECTS = set(SUBJECT_NAMES)
 MAX_PROMPT = 1800
@@ -119,11 +122,12 @@ class TrainingExampleRequest(BaseModel):
 
 @app.on_event("startup")
 def startup():
-    global storage, model
+    global storage, model, auth_store
     database_url = os.getenv("DATABASE_URL", "")
     if not database_url:
         raise RuntimeError("DATABASE_URL must be configured")
     storage = Storage(database_url)
+    auth_store = AuthStore(database_url)
     checkpoint = os.getenv("MODEL_CHECKPOINT", "/app/models/checkpoint.pt")
     model = Tutor(checkpoint_path=checkpoint)
 
@@ -134,25 +138,96 @@ def db() -> Storage:
     return storage
 
 
-def session_user(request: Request, response: Response) -> int:
-    """Bind a random opaque session to a DB-assigned internal ID."""
-    if storage is None:
-        raise HTTPException(503, "Database not initialized")
-    raw = request.cookies.get(COOKIE, "")
-    token = raw if len(raw) == 64 and all(c in "0123456789abcdef" for c in raw) else None
-    if not token:
-        token = secrets.token_hex(32)
-    uid = storage.get_or_create_web_session(token)
-    if raw != token:
-        response.set_cookie(COOKIE, token, httponly=True, samesite="strict",
-                            secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
-                            max_age=30 * 24 * 3600, path="/")
-    return uid
+def session_user(request: Request) -> int:
+    """Require an authenticated, unexpired local account for private data."""
+    if auth_store is None:
+        raise HTTPException(503, "Authentication service is not initialized")
+    token = request.cookies.get(COOKIE, "")
+    session = auth_store.session(token)
+    if not session:
+        raise HTTPException(401, "يجب تسجيل الدخول للوصول إلى بيانات المشروع")
+    return session["user_id"]
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=40)
+    password: str = Field(min_length=1, max_length=128)
+
+
+def cookie_secure() -> bool:
+    return os.getenv("COOKIE_SECURE", "false").lower() == "true"
+
+
+@app.get("/api/auth/state")
+def auth_state(request: Request):
+    if auth_store is None:
+        raise HTTPException(503, "Authentication service is not initialized")
+    token = request.cookies.get(COOKIE, "")
+    session = auth_store.session(token)
+    if not session:
+        return {"authenticated": False, "legacy_available": bool(request.cookies.get(LEGACY_COOKIE))}
+    csrf = auth_store.rotate_csrf(token)
+    return {"authenticated": True, "username": session["username"],
+            "role": session["role"], "csrf": csrf,
+            "legacy_available": bool(request.cookies.get(LEGACY_COOKIE))}
+
+
+@app.post("/api/auth/login")
+def login(body: LoginRequest, response: Response, request: Request):
+    if auth_store is None:
+        raise HTTPException(503, "Authentication service is not initialized")
+    result = auth_store.login(body.username, body.password)
+    if result is None:
+        raise HTTPException(401, "اسم المستخدم أو كلمة المرور غير صحيحة أو الحساب مقفل مؤقتًا")
+    # A successful login replaces any existing browser session to avoid replay.
+    auth_store.logout(request.cookies.get(COOKIE, ""))
+    response.set_cookie(COOKIE, result["token"], httponly=True, samesite="strict",
+                        secure=cookie_secure(), max_age=SESSION_SECONDS, path="/")
+    return {"authenticated": True, "username": result["username"],
+            "role": result["role"], "csrf": result["csrf"]}
+
+
+@app.post("/api/auth/logout")
+def logout(request: Request, response: Response):
+    if auth_store is not None:
+        auth_store.logout(request.cookies.get(COOKIE, ""))
+    response.delete_cookie(COOKIE, path="/")
+    return {"ok": True}
+
+
+@app.post("/api/auth/claim-legacy")
+def claim_legacy_data(request: Request, user: Annotated[int, Depends(session_user)]):
+    if auth_store is None:
+        raise HTTPException(503, "Authentication service is not initialized")
+    old = request.cookies.get(LEGACY_COOKIE, "")
+    try:
+        claimed = auth_store.claim_legacy(user, old)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if not claimed:
+        raise HTTPException(404, "لا توجد بيانات قديمة مرتبطة بهذه الجلسة")
+    result = Response(content='{"ok":true}', media_type="application/json")
+    result.delete_cookie(LEGACY_COOKIE, path="/")
+    return result
 
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
+    if request.url.path.startswith("/api/") and request.method in {"POST","PUT","PATCH","DELETE"}:
+        origin = request.headers.get("origin")
+        target = str(request.base_url).rstrip("/")
+        if origin and origin != target:
+            return Response("Cross-origin operation denied", status_code=403)
+        if request.headers.get("sec-fetch-site") == "cross-site":
+            return Response("Cross-site operation denied", status_code=403)
+        if auth_store is not None and request.url.path != "/api/auth/login":
+            token = request.cookies.get(COOKIE, "")
+            csrf = request.headers.get("x-csrf-token", "")
+            if not auth_store.verify_csrf(token, csrf):
+                return Response("CSRF verification failed", status_code=403)
     response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
@@ -625,9 +700,6 @@ def answer(body: AnswerRequest, user: Annotated[int, Depends(session_user)],
 def delete_account(request: Request, response: Response,
                    user: Annotated[int, Depends(session_user)],
                    database: Annotated[Storage, Depends(db)]):
-    try:
-        database.delete_user(user)
-    except ValueError as exc:
-        raise HTTPException(409, str(exc)) from exc
-    response.delete_cookie(COOKIE, path="/")
-    return {"ok": True}
+    raise HTTPException(
+        409,
+        "تعطيل حذف الحساب مؤقتًا لحماية مستودعات Gitea وملفات التدريب. استخدم تسجيل الخروج.")

@@ -9,6 +9,7 @@ const SUBJECTS = {
 const LEVELS={beginner:"مبتدئ",intermediate:"متوسط",highschool:"ثانوي",university:"جامعي"};
 const PAGES={home:"الرئيسية",chat:"المحادثة الهندسية",curriculum:"مسار التعلم",quiz:"التمارين والاختبارات",projects:"المشاريع العملية",tools:"المختبر والأدوات",datasets:"إدارة بيانات التدريب",progress:"التقدم والإعدادات"};
 const appState={profile:null,catalog:null,model:null,loading:false,view:"home"};
+let csrfToken="";
 const mk = (tag,className,text) => {
   const el=document.createElement(tag);
   if(className)el.className=className;
@@ -16,7 +17,7 @@ const mk = (tag,className,text) => {
   return el;
 };
 async function api(path,options={}){
-  const response=await fetch("/api/"+path,{credentials:"same-origin",headers:{"Content-Type":"application/json"},...options});
+  const response=await fetch("/api/"+path,{credentials:"same-origin",headers:{"Content-Type":"application/json",...(csrfToken?{"X-CSRF-Token":csrfToken}:{})},...options});
   const data=await response.json().catch(()=>({}));
   if(!response.ok) throw Error(typeof data.detail==="string"?data.detail:"تعذر تنفيذ العملية");
   return data;
@@ -640,6 +641,73 @@ function findLocal(query){
   else if(project){go("projects");toast("المشروع المطابق: "+project.title);}
   else toast("لا توجد نتيجة في فهرس الدروس والمشاريع الحالي");
 }
+async function loadAuthenticatedWorkspace(){
+  $("auth-gate").classList.add("hidden");
+  $("auth-error").textContent="";
+  const results=await Promise.allSettled([loadProfile(),loadCatalog(),loadModel()]);
+  for(const r of results)if(r.status==="rejected")toast(r.reason?.message||"تعذر الاتصال بالخادم");
+}
+async function checkAuth(){
+  try{
+    const state=await api("auth/state");
+    if(!state.authenticated){
+      csrfToken="";
+      $("auth-gate").classList.remove("hidden");
+      $("legacy-claim-banner").classList.add("hidden");
+      return;
+    }
+    csrfToken=state.csrf;
+    $("logged-user").textContent=state.username.slice(0,2).toUpperCase();
+    $("logged-user").title="حساب "+state.username;
+    if(state.legacy_available)$("legacy-claim-banner").classList.remove("hidden");
+    else $("legacy-claim-banner").classList.add("hidden");
+    await loadAuthenticatedWorkspace();
+  }catch(error){
+    $("auth-error").textContent=error.message;
+    $("auth-gate").classList.remove("hidden");
+  }
+}
+function clearPrivateWorkspace(){
+  appState.profile=null;
+  repoState.id=null;
+  repoState.sha=null;
+  repoState.path="";
+  repoState.title="";
+  repoState.folder="";
+  for(const id of ["messages","repo-list","project-files","project-search-results",
+                    "commit-list","dataset-list","training-jobs","curriculum-content",
+                    "projects-content","file-preview-content"]){
+    const node=$(id);
+    if(node)node.replaceChildren();
+  }
+  for(const id of ["file-editor","editor-filepath","rename-destination","question",
+                   "project-file-search","folder-path"]){
+    const node=$(id);if(node)node.value="";
+  }
+  $("project-explorer").classList.add("hidden");
+  $("project-search-results").classList.add("hidden");
+  $("legacy-claim-banner").classList.add("hidden");
+}
+async function logoutAuth(){
+  try{await api("auth/logout",{method:"POST"});}
+  catch(e){toast(e.message);return;}
+  csrfToken="";
+  clearPrivateWorkspace();
+  $("auth-gate").classList.remove("hidden");
+  $("legacy-claim-banner").classList.add("hidden");
+  $("auth-password").value="";
+  go("home");
+}
+async function claimLegacy(){
+  if(!confirm("سيتم نقل المشاريع وبيانات التدريب القديمة إلى حسابك الحالي. لا يمكن عكس هذه العملية. هل تؤكد؟"))return;
+  try{
+    await api("auth/claim-legacy",{method:"POST"});
+    $("legacy-claim-banner").classList.add("hidden");
+    toast("تم نقل بيانات الجلسة القديمة إلى الحساب بنجاح");
+    await loadProfile();
+  }catch(e){toast(e.message);}
+}
+
 function initBindings(){
   document.querySelectorAll("[data-view]").forEach(el=>el.addEventListener("click",()=>go(el.dataset.view)));
   document.querySelectorAll("[data-go]").forEach(el=>el.addEventListener("click",()=>go(el.dataset.go)));
@@ -690,9 +758,23 @@ function initBindings(){
     }catch(err){toast(err.message);}
     finally{btn.disabled=false;}
   });
-  $("delete-account").addEventListener("click",async()=>{
-    if(!confirm("سيتم حذف سجلات هذه الجلسة من PostgreSQL، لكن ملفات التدريب والنماذج المحفوظة قد تبقى في Docker حاليًا. هل تؤكد؟"))return;
-    try{await api("account",{method:"DELETE"});window.location.reload();}catch(e){toast(e.message);}
+  $("delete-account").addEventListener("click",logoutAuth);
+  $("logout-button").addEventListener("click",logoutAuth);
+  $("claim-legacy").addEventListener("click",claimLegacy);
+  $("dismiss-legacy").addEventListener("click",()=>$("legacy-claim-banner").classList.add("hidden"));
+  $("auth-form").addEventListener("submit",async event=>{
+    event.preventDefault();
+    const btn=$("auth-submit");
+    btn.disabled=true;
+    $("auth-error").textContent="";
+    try{
+      await api("auth/login",{method:"POST",body:JSON.stringify({
+        username:$("auth-username").value.trim(),password:$("auth-password").value
+      })});
+      $("auth-password").value="";
+      await checkAuth();
+    }catch(e){$("auth-error").textContent=e.message;}
+    finally{btn.disabled=false;}
   });
   $("theme-toggle").addEventListener("click",()=>{
     const light=document.documentElement.dataset.theme!=="light";
@@ -701,8 +783,8 @@ function initBindings(){
   });
 }
 async function init(){
-  initBindings();go("home");
-  const results=await Promise.allSettled([loadProfile(),loadCatalog(),loadModel()]);
-  for(const r of results){if(r.status==="rejected")toast(r.reason?.message||"تعذر الاتصال بخادم المشروع");}
+  initBindings();
+  go("home");
+  await checkAuth();
 }
 init();
