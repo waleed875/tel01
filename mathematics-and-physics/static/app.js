@@ -775,7 +775,8 @@ function clearPrivateWorkspace(){
   repoState.folder="";
   for(const id of ["messages","repo-list","project-files","project-search-results",
                     "commit-list","dataset-list","training-jobs","curriculum-content",
-                    "projects-content","file-preview-content"]){
+                    "projects-content","file-preview-content",
+                    "research-results","research-page-text","research-page-title"]){
     const node=$(id);
     if(node)node.replaceChildren();
   }
@@ -786,6 +787,10 @@ function clearPrivateWorkspace(){
   $("project-explorer").classList.add("hidden");
   $("project-search-results").classList.add("hidden");
   $("legacy-claim-banner").classList.add("hidden");
+  $("research-article").classList.add("hidden");
+  $("chat-research").checked=false;
+  $("research-query").value="";
+  $("research-page-link").removeAttribute("href");
 }
 async function logoutAuth(){
   try{await api("auth/logout",{method:"POST"});}
