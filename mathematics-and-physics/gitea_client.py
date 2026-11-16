@@ -101,6 +101,17 @@ class GiteaClient:
             "default_branch": "main",
         })
 
+    async def set_archived(self, name: str, archived: bool) -> dict:
+        """Archive/unarchive a private repository without losing Git history."""
+        if not isinstance(archived, bool):
+            raise ValueError("Archived flag must be boolean")
+        result = await self._call(
+            "PATCH", self._repo_prefix(name), json={"archived": archived}
+        )
+        if not isinstance(result, dict) or result.get("archived") is not archived:
+            raise GiteaError(502, "Gitea did not confirm requested archive state")
+        return {"archived": archived, "name": name}
+
     async def delete_repo(self, name: str):
         await self._call("DELETE", self._repo_prefix(name))
 
