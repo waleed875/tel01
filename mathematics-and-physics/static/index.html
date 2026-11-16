@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>مختبر الذكاء الهندسي</title>
+<link rel="stylesheet" href="/static/style.css"/>
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+<aside class="sidebar">
+  <div class="brand"><div class="mark">∑</div><div><strong>مختبر الذكاء الهندسي</strong><small>Engineering AI Lab</small></div></div>
+  <div class="section-label">بيئة الدراسة</div>
+  <button class="nav active" id="nav-chat"><span>◈</span> المحادثة العلمية</button>
+  <button class="nav" id="nav-quiz"><span>◎</span> الاختبارات والتطبيق</button>
+  <button class="nav" id="nav-progress"><span>▤</span> تقدمي الدراسي</button>
+  <div class="sidebar-bottom"><div class="privacy">🔒 النموذج يعمل على خادمك ولا يستخدم خدمة ذكاء اصطناعي خارجية.</div><span class="tiny">إصدار بحثي تجريبي — لا تعتمد عليه في القرارات الهندسية الحساسة.</span></div>
+</aside>
+<main>
+<header><div><p class="eyebrow">مساحة تعلم خاصة</p><h1 id="page-title">المحادثة العلمية</h1></div><div class="status"><span class="dot"></span> خادم محلي</div></header>
+<div class="selector-panel">
+<label>التخصص <select id="subject"><option value="math">الرياضيات</option><option value="physics">الفيزياء</option><option value="software">هندسة البرمجيات</option><option value="electronics">هندسة الإلكترونيات</option></select></label>
+<label>المستوى <select id="level"><option value="beginner">مبتدئ</option><option value="intermediate">متوسط</option><option value="highschool">ثانوي</option><option value="university">جامعي</option></select></label>
+<div class="mode">نموذج Transformer من تدريبنا <span>بحث وتطوير</span></div>
+</div>
+<section id="view-chat" class="view">
+<div class="intro"><div class="intro-icon">⌘</div><h2>مرحبًا في مختبرك الهندسي</h2><p>استكشف المبادئ، واسأل عن المسائل الرياضية والفيزيائية، وتعلّم كيف تتداخل البرمجة والإلكترونيات. الأوزان الحالية تحتاج إلى تدريب كافٍ قبل أن تصبح الإجابات موثوقة.</p></div>
+<div id="messages" class="messages" aria-live="polite"></div>
+<form id="chat-form" class="composer"><textarea id="question" rows="2" maxlength="1800" placeholder="اكتب سؤالك الهندسي هنا..." required></textarea><div class="composer-bottom"><span>Shift + Enter لسطر جديد • Enter للإرسال</span><button type="submit" id="send">إرسال السؤال ←</button></div></form>
+<button class="text-button" id="clear-history">مسح المحادثة</button>
+</section>
+<section id="view-quiz" class="view hidden">
+<div class="panel"><div class="panel-heading"><h2>اختبر معرفتك</h2><p>أسئلة موثّقة داخليًا في الرياضيات والفيزياء؛ لا تحتاج إلى تدريب النموذج.</p></div><div id="quiz-content"><button id="new-quiz">ابدأ اختبارًا جديدًا</button></div></div>
+</section>
+<section id="view-progress" class="view hidden">
+<div class="stats"><div class="stat"><small>أسئلة مجابة</small><strong id="attempted">—</strong></div><div class="stat"><small>إجابات صحيحة</small><strong id="correct">—</strong></div><div class="stat"><small>نسبة النجاح</small><strong id="accuracy">—</strong></div></div>
+<div class="panel"><h2>الخصوصية والبيانات</h2><p>يُحفظ تقدّمك وسجل محادثاتك في PostgreSQL على خادم المشروع. هذا الإصدار يعمل بجلسة متصفح محلية ولا يتضمن حسابات مستخدمين بعد؛ لا تنشره للعموم قبل إضافة تسجيل دخول وحماية HTTPS.</p><button class="danger" id="delete-account">حذف بيانات هذه الجلسة</button></div>
+</section>
+<footer><span>المعرفة تأتي من التدريب والبيانات والتحقق، وليست من المعمارية وحدها.</span><span>Engineering AI · v0.1</span></footer>
+</main>
+</div>
+</body>
+</html>
