@@ -8,7 +8,7 @@ if errorlevel 1 (
 )
 if not exist ".env" (
     copy ".env.example" ".env" >nul
-    echo Set your Telegram token and PostgreSQL password in .env.
+    echo Set a strong PostgreSQL password in .env, then rerun.
     notepad ".env"
     pause
     exit /b 0
@@ -20,5 +20,5 @@ if errorlevel 1 (
     exit /b 1
 )
 docker compose ps
-echo Open your Telegram bot and send /start.
+echo Open http://localhost:8000 in your browser.
 pause
