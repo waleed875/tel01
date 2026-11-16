@@ -24,7 +24,7 @@ class TrainingPipelineTests(unittest.TestCase):
     def test_rejects_tool_benchmark_leakage_before_split(self):
         from benchmarks.evaluate_tool_proposals import load_suite
         from benchmarks.evaluate_domains import load_benchmark
-        for task in (load_tool_case for load_tool_case in [load_suite()["tasks"][0], load_suite()["tasks"][-1]]):
+        for task in (load_suite()["tasks"][0], load_suite()["tasks"][-1]):
             rows = [dict(row) for row in self.rows]
             rows[0] = {"id": 1, "subject": task["subject"],
                        "question": "  " + task["question"] + " ",
