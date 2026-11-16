@@ -7,6 +7,7 @@ import asyncio
 import os
 import secrets
 from gitea_client import GiteaClient, GiteaError
+from design_commit import build_proposal, commit_proposal
 
 
 async def main():
@@ -69,6 +70,47 @@ async def main():
         else:
             raise AssertionError("Original path remained after atomic rename")
         await client.delete_file(name, renamed, sha2, "Remove source fixture")
+        # Website files must be created together by one explicit approved commit.
+        config = {
+            "title": "Engineering test site",
+            "description": "A disposable engineering website generated for integration testing.",
+            "style": "light", "sections": ["features", "contact"],
+            "directory": "sites/demo",
+        }
+        preview = await build_proposal(client, name, user_id=1,
+                                       project_id=1, config=config)
+        assert preview["can_apply"] and all(
+            entry["operation"] == "create" for entry in preview["files"])
+        for file in preview["files"]:
+            try:
+                await client.read_file(name, file["path"])
+            except GiteaError as exc:
+                assert exc.status == 404
+            else:
+                raise AssertionError("Preview unexpectedly wrote a file")
+        committed = await commit_proposal(
+            client, name, user_id=1, project_id=1,
+            config=config, fingerprint=preview["fingerprint"])
+        assert len(committed["changed_paths"]) == 2
+        assert (await client.read_file(name, "sites/demo/index.html"))["data"].startswith(b"<!doctype html>")
+        assert b"@media" in (await client.read_file(name, "sites/demo/style.css"))["data"]
+        commits_after = await client.commits(name)
+        assert commits_after[0]["message"].startswith("Build reviewed website scaffold")
+        # Conflict when files change after review (no overwrite or partial update).
+        stale = await build_proposal(client, name, user_id=1,
+                                     project_id=1, config=config)
+        previous = await client.read_file(name, "sites/demo/index.html")
+        await client.write_file(name, "sites/demo/index.html", b"modified by another editor",
+                                sha=previous["sha"], message="Concurrent edit")
+        try:
+            await commit_proposal(client, name, user_id=1, project_id=1,
+                                  config=config, fingerprint=stale["fingerprint"])
+        except GiteaError as exc:
+            assert exc.status == 409
+        else:
+            raise AssertionError("Stale website approval unexpectedly overwrote file")
+        assert (await client.read_file(name, "sites/demo/index.html"))["data"] == b"modified by another editor"
+        print("PASS: owner-reviewed website 2-file atomic commit and stale review protection", flush=True)
         print("PASS: repo visibility, Git commits, edit, stale-SHA conflict, binary and delete", flush=True)
     finally:
         if created:
