@@ -18,7 +18,7 @@ import time
 MAX_CODE_BYTES = 64 * 1024
 MAX_INPUT_BYTES = 8 * 1024
 MAX_OUTPUT_BYTES = 32 * 1024
-RUN_TIMEOUT_SECONDS = 20
+RUN_TIMEOUT_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -138,7 +138,7 @@ def execute(language: str, code: str, stdin: str = "",
     if len(stdin.encode("utf-8")) > MAX_INPUT_BYTES:
         raise ValueError("Standard input may not exceed 8 KiB")
     if type(timeout) is not int or not 1 <= timeout <= RUN_TIMEOUT_SECONDS:
-        raise ValueError("Time limit must be 1..20 seconds")
+        raise ValueError("Time limit must be 1..60 seconds")
     runtime = RUNTIMES[language]
     name = "lab-code-" + secrets.token_hex(8)
     with tempfile.TemporaryDirectory(prefix="lab-code-input-") as tmp:
@@ -155,7 +155,7 @@ def execute(language: str, code: str, stdin: str = "",
             "--pull=never", "--network=none", "--read-only",
             "--cap-drop=ALL", "--security-opt=no-new-privileges",
             "--ipc=none", "--pids-limit=64", "--memory=512m",
-            "--memory-swap=512m", "--cpus=1",
+            "--memory-swap=512m", "--cpus=2",
             "--ulimit=nofile=64:64", "--user=65534:65534",
             "--tmpfs=/tmp:rw,nosuid,nodev,exec,size=128m,mode=1777",
             "--mount=type=bind,src=" + str(folder.resolve()) + ",dst=/input,readonly",
