@@ -41,8 +41,9 @@ stored in the `gitea_data` volume; its separate PostgreSQL data is in
    offers administrator creation, use it; otherwise use the documented Gitea
    administrative user creation process inside its container.
 3. Under that Gitea account, open user **Settings → Applications → Generate
-   New Token**, with repository read/write and repository creation permissions
-   as supported by your Gitea version. Do not paste the token in ChatGPT.
+   New Token**, with **write:repository** and **write:user** scopes (the latter is needed
+   for creating repositories via the `/user/repos` endpoint in this Gitea
+   version). Do not grant full administrator scopes to the application token. Do not paste the token in ChatGPT.
 4. Set `GITEA_OWNER` to that Gitea username, and `GITEA_API_TOKEN` to the
    service-account token in the *local, untracked* `.env` file.
 5. Apply settings: `docker compose up -d --force-recreate web`.
