@@ -72,6 +72,10 @@ PROJECTS = [
 ]
 
 
+class TrainingReviewRequest(BaseModel):
+    approved: bool
+
+
 class TrainingExampleRequest(BaseModel):
     subject: str
     question: str = Field(min_length=8, max_length=1800)
@@ -163,6 +167,23 @@ def training_examples(user: Annotated[int, Depends(session_user)],
                       database: Annotated[Storage, Depends(db)]):
     return {"examples": database.training_examples(user, 100),
             "note": "المسودات تحفظ في PostgreSQL فقط ولا تدخل في تدريب النموذج تلقائيًا."}
+
+
+@app.patch("/api/datasets/{example_id}/review")
+def review_example(example_id: int, body: TrainingReviewRequest,
+                   user: Annotated[int, Depends(session_user)],
+                   database: Annotated[Storage, Depends(db)]):
+    updated = database.review_training_example(user, example_id,
+                                               "approved" if body.approved else "draft")
+    if not updated:
+        raise HTTPException(404, "المثال غير موجود")
+    return updated
+
+
+@app.get("/api/datasets/stats")
+def dataset_stats(user: Annotated[int, Depends(session_user)],
+                  database: Annotated[Storage, Depends(db)]):
+    return database.training_counts(user)
 
 
 @app.post("/api/datasets", status_code=201)
