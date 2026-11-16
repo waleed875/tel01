@@ -280,6 +280,16 @@ class Storage:
                 (user_id, job_id),
             ).fetchone()
 
+    def completed_training_job_path(self, user_id: int, job_id: int):
+        """Return checkpoint metadata only for a completed run owned by this user."""
+        with self._connect() as db:
+            return db.execute(
+                """SELECT id,checkpoint_path,heldout_loss FROM training_jobs
+                   WHERE id=%s AND user_id=%s AND state='completed'
+                   AND checkpoint_path IS NOT NULL""",
+                (job_id, user_id),
+            ).fetchone()
+
     def activate_training_job(self, user_id: int, job_id: int):
         """Select only a completed checkpoint belonging to the active session."""
         with self._connect() as db:
