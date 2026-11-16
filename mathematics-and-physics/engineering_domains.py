@@ -99,7 +99,8 @@ def subject_prompt(subject: str, level: str, question: str) -> str:
         "اذكر خطوات الحساب والوحدات عند الحاجة، ولا تخترع قياسات أو مصادر. "
         "إذا كانت الإجابة غير مؤكدة فوضّح ذلك. "
         "إذا كان الطلب خارج المجالات الأربعة، اعتذر باختصار وبيّن حدود التخصص.\n"
-        f"سؤال: {question}"
+        # Keep subject near the question: small byte-GPT context truncates the prefix.
+        f"المجال: {DOMAINS[subject]['label']}\nسؤال: {question}"
     )
 
 
