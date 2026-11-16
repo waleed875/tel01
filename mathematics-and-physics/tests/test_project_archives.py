@@ -81,7 +81,7 @@ class BackupVerificationTests(unittest.TestCase):
             for filename in FILES:
                 (folder / filename).write_bytes(b"archive-validation" * 20)
             manifest = {
-                "format": 1,
+                "format": 2,
                 "files": {
                     filename: {"size": (folder / filename).stat().st_size,
                                "sha256": sha256sum(folder / filename)}
