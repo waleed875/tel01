@@ -1,0 +1,289 @@
+{
+  "version": 1,
+  "license": "CC0-1.0",
+  "purpose": "Small public functional smoke benchmark for software engineering. Cases are not hidden and cannot certify general coding capability.",
+  "tasks": [
+    {
+      "id": "sum_even",
+      "domain": "python-function",
+      "prompt": "Write ONLY Python code defining sum_even(numbers). Return the sum of even integer values in the input list. Do not import packages or use classes.",
+      "function": "sum_even",
+      "cases": [
+        {
+          "args": [
+            [
+              1,
+              2,
+              3,
+              4
+            ]
+          ],
+          "expected": 6
+        },
+        {
+          "args": [
+            []
+          ],
+          "expected": 0
+        },
+        {
+          "args": [
+            [
+              -4,
+              -3,
+              0,
+              8
+            ]
+          ],
+          "expected": 4
+        },
+        {
+          "args": [
+            [
+              5,
+              7,
+              9
+            ]
+          ],
+          "expected": 0
+        },
+        {
+          "args": [
+            [
+              2,
+              2,
+              2
+            ]
+          ],
+          "expected": 6
+        }
+      ],
+      "reference": "def sum_even(numbers):\n    result = 0\n    for number in numbers:\n        if number % 2 == 0:\n            result += number\n    return result\n"
+    },
+    {
+      "id": "rotate_left",
+      "domain": "python-function",
+      "prompt": "Write ONLY Python code defining rotate_left(items, k). Return a new list with its contents shifted left by k positions. Empty inputs remain empty, and k may exceed the list length or be negative.",
+      "function": "rotate_left",
+      "cases": [
+        {
+          "args": [
+            [
+              1,
+              2,
+              3,
+              4
+            ],
+            1
+          ],
+          "expected": [
+            2,
+            3,
+            4,
+            1
+          ]
+        },
+        {
+          "args": [
+            [
+              1,
+              2,
+              3
+            ],
+            4
+          ],
+          "expected": [
+            2,
+            3,
+            1
+          ]
+        },
+        {
+          "args": [
+            [],
+            5
+          ],
+          "expected": []
+        },
+        {
+          "args": [
+            [
+              "a",
+              "b",
+              "c"
+            ],
+            -1
+          ],
+          "expected": [
+            "c",
+            "a",
+            "b"
+          ]
+        },
+        {
+          "args": [
+            [
+              9
+            ],
+            100
+          ],
+          "expected": [
+            9
+          ]
+        }
+      ],
+      "reference": "def rotate_left(items, k):\n    if not items:\n        return []\n    n = k % len(items)\n    return items[n:] + items[:n]\n"
+    },
+    {
+      "id": "count_occurrences",
+      "domain": "python-function",
+      "prompt": "Write ONLY Python code defining count_occurrences(items, target). Count how many elements of the list equal the target. Return an integer.",
+      "function": "count_occurrences",
+      "cases": [
+        {
+          "args": [
+            [
+              1,
+              2,
+              1,
+              1
+            ],
+            1
+          ],
+          "expected": 3
+        },
+        {
+          "args": [
+            [],
+            10
+          ],
+          "expected": 0
+        },
+        {
+          "args": [
+            [
+              "a",
+              "b",
+              "a"
+            ],
+            "a"
+          ],
+          "expected": 2
+        },
+        {
+          "args": [
+            [
+              3,
+              4,
+              5
+            ],
+            9
+          ],
+          "expected": 0
+        },
+        {
+          "args": [
+            [
+              false,
+              true,
+              false
+            ],
+            false
+          ],
+          "expected": 2
+        }
+      ],
+      "reference": "def count_occurrences(items, target):\n    count = 0\n    for item in items:\n        if item == target:\n            count += 1\n    return count\n"
+    },
+    {
+      "id": "fibonacci",
+      "domain": "python-function",
+      "prompt": "Write ONLY Python code defining fibonacci(n), returning the nth Fibonacci number for nonnegative integers, with fibonacci(0)=0 and fibonacci(1)=1. Use an iterative algorithm.",
+      "function": "fibonacci",
+      "cases": [
+        {
+          "args": [
+            0
+          ],
+          "expected": 0
+        },
+        {
+          "args": [
+            1
+          ],
+          "expected": 1
+        },
+        {
+          "args": [
+            2
+          ],
+          "expected": 1
+        },
+        {
+          "args": [
+            7
+          ],
+          "expected": 13
+        },
+        {
+          "args": [
+            15
+          ],
+          "expected": 610
+        },
+        {
+          "args": [
+            25
+          ],
+          "expected": 75025
+        }
+      ],
+      "reference": "def fibonacci(n):\n    a, b = 0, 1\n    for i in range(n):\n        a, b = b, a + b\n    return a\n"
+    },
+    {
+      "id": "balanced_brackets",
+      "domain": "python-function",
+      "prompt": "Write ONLY Python code defining balanced_brackets(text). Return True when parentheses (), brackets [] and braces {} in the input string are properly matched and nested. Ignore other characters.",
+      "function": "balanced_brackets",
+      "cases": [
+        {
+          "args": [
+            "([]{})"
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            "([)]"
+          ],
+          "expected": false
+        },
+        {
+          "args": [
+            "plain"
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            "{[(x)]}"
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            "((("
+          ],
+          "expected": false
+        },
+        {
+          "args": [
+            "())"
+          ],
+          "expected": false
+        }
+      ],
+      "reference": "def balanced_brackets(text):\n    stack = []\n    for ch in text:\n        if ch in '([{':\n            stack = stack + [ch]\n        elif ch in ')]}':\n            if not stack:\n                return False\n            expected = {')':'(',']':'[','}':'{'}[ch]\n            if stack[-1] != expected:\n                return False\n            stack = stack[:-1]\n    return len(stack) == 0\n"
+    }
+  ]
+}
