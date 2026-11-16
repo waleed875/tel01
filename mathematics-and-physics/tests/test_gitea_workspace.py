@@ -38,6 +38,7 @@ class GiteaValidationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     validate_path(item)
         self.assertEqual(validate_path("src/logic/main.py"), "src/logic/main.py")
+        self.assertEqual(validate_path(".gitignore"), ".gitignore")
         self.assertEqual(validate_path("", allow_root=True), "")
 
     def test_gitea_host_restriction(self):
