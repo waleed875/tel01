@@ -73,7 +73,7 @@ Every attempt starts a freshly named Docker container with no network,
 read-only root filesystem, read-only mounted source/stdin files, temporary
 sandbox-only writable `/tmp`, no database/model/Gitea mounts, no host
 project mounts, no Docker socket, no added capabilities, non-root UID,
-`no-new-privileges`, strict process/memory/CPU limits, a 20-second maximum
+`no-new-privileges`, strict process/memory/CPU limits, a 60-second maximum
 wall clock time, and a combined 32 KiB stdout/stderr cap. The runner removes
 its own container on timeout or excessive output.
 
