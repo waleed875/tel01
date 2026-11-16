@@ -361,7 +361,7 @@ function initBindings(){
     finally{btn.disabled=false;}
   });
   $("delete-account").addEventListener("click",async()=>{
-    if(!confirm("سيتم حذف بيانات هذه الجلسة ومحادثاتها ومسوداتها نهائيًا. هل تؤكد؟"))return;
+    if(!confirm("سيتم حذف سجلات هذه الجلسة من PostgreSQL، لكن ملفات التدريب والنماذج المحفوظة قد تبقى في Docker حاليًا. هل تؤكد؟"))return;
     try{await api("account",{method:"DELETE"});window.location.reload();}catch(e){toast(e.message);}
   });
   $("theme-toggle").addEventListener("click",()=>{
