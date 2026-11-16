@@ -20,6 +20,7 @@ from storage import Storage
 from tutor import Tutor, LEVEL_NAMES, SUBJECT_NAMES
 from engineering_domains import catalog as domain_catalog
 from engineering_calculators import get_catalog as calculator_catalog, calculate as calculate_engineering
+from engineering_tool_proposals import propose as propose_tool, approved_calculate
 from gitea_client import GiteaClient, GiteaError, MAX_FILE_BYTES, validate_path
 from auth import AuthStore, SESSION_SECONDS
 from vision import describe_image
@@ -105,6 +106,13 @@ class ResearchSearchRequest(BaseModel):
 
 class ResearchOpenRequest(BaseModel):
     url: str = Field(min_length=12, max_length=2048)
+
+
+class ApprovedModelToolRequest(BaseModel):
+    operation: str = Field(min_length=5, max_length=80)
+    inputs: dict
+    token: str = Field(min_length=75, max_length=90)
+    approved: bool = False
 
 
 class EngineeringCalculateRequest(BaseModel):
@@ -599,6 +607,20 @@ async def project_commits(project_id: int, user: Annotated[int, Depends(session_
     return {"commits": await GiteaClient().commits(project["repo_name"])}
 
 
+@app.post("/api/engineering/model-tool/apply")
+def apply_approved_model_tool(body: ApprovedModelToolRequest,
+                              user: Annotated[int, Depends(session_user)]):
+    """An authenticated user's explicit approval; no model calls or side effects."""
+    if not body.approved:
+        raise HTTPException(409, "يجب الموافقة على مدخلات العملية الهندسية قبل تنفيذها")
+    try:
+        result = approved_calculate(user, body.operation, body.inputs, body.token)
+        result["approval"] = "explicit-user-approval"
+        return result
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
 @app.get("/api/engineering/tools")
 def engineering_tools(user: Annotated[int, Depends(session_user)]):
     return calculator_catalog()
@@ -942,9 +964,15 @@ async def chat(body: ChatRequest, user: Annotated[int, Depends(session_user)],
         raise HTTPException(503, "لم يتم تدريب النموذج بعد، أو تعذر تحميل ملف الأوزان.")
     except TimeoutError:
         raise HTTPException(504, "انتهت مهلة التوليد. جرّب سؤالاً أقصر.")
+    # The model only proposes a calculation. Never execute it in chat.
+    proposal = propose_tool(answer, user)
+    # Refuse cross-domain suggestions for this specialist conversation.
+    if proposal and proposal["domain"] != profile["subject"]:
+        proposal = None
     database.add_exchange(user, question, answer)
     references = find_references(question, profile["subject"], 3)
-    return {"answer": answer, "references": [name for name, _ in references],
+    return {"answer": answer, "tool_proposal": proposal,
+            "references": [name for name, _ in references],
             "web_sources": [{"title": r["title"], "url": r["url"]} for r in sources],
             "notice": "النموذج تجريبي. نتائج الإنترنت مصادر خارجية غير موثوقة وقد تكون خاطئة. " +
                       (research_error or "")}
