@@ -692,6 +692,39 @@ async function openResearchPage(url){
     panel.scrollIntoView({behavior:"smooth",block:"start"});
   }catch(e){$("research-page-title").textContent="تعذر فتح الصفحة";$("research-page-text").textContent=e.message;}
 }
+function showEngineeringToolProposal(container,proposal){
+  const box=mk("section","model-tool-review");
+  box.append(mk("strong","","اقتراح حساب هندسي من النموذج — لم يُنفّذ بعد"));
+  box.append(mk("p","",proposal.label+" • "+proposal.domain));
+  const details=mk("pre","engineering-result",
+    JSON.stringify({operation:proposal.operation,inputs:proposal.inputs},null,2));
+  box.append(details,mk("p","help-text",proposal.notice));
+  const approve=mk("button","primary-btn","أوافق على المدخلات — احسب الآن");
+  approve.type="button";
+  const status=mk("pre","engineering-result","");
+  approve.addEventListener("click",async()=>{
+    if(approve.disabled)return;
+    if(!confirm("هل راجعت العملية والقيم وتوافق على تنفيذ الحساب الحتمي فقط؟"))return;
+    approve.disabled=true;
+    try{
+      const result=await api("engineering/model-tool/apply",{
+        method:"POST",body:JSON.stringify({
+          operation:proposal.operation,inputs:proposal.inputs,
+          token:proposal.token,approved:true
+        })});
+      status.textContent=JSON.stringify({
+        verified_values:result.values,formula:result.formula,
+        assumptions:result.assumptions,notice:result.notice
+      },null,2);
+      approve.textContent="تم التحقق من الحساب";
+    }catch(error){
+      status.textContent="تعذر التحقق: "+error.message+
+        "؛ اطلب اقتراحًا جديدًا إذا انتهت صلاحية الموافقة.";
+    }
+  });
+  box.append(approve,status);
+  container.append(box);
+}
 async function sendChat(e){
   e.preventDefault();
   if(appState.loading)return;
@@ -706,6 +739,9 @@ async function sendChat(e){
       question:q,use_research:$("chat-research").checked
     })});
     pending.lastChild.textContent=result.answer+"\n\nتنبيه: "+result.notice;
+    if(result.tool_proposal){
+      showEngineeringToolProposal(pending,result.tool_proposal);
+    }
     if(result.web_sources?.length){
       const sources=mk("div","chat-citations");
       sources.append(mk("strong","","مصادر الإنترنت (غير موثقة تلقائيًا):"));

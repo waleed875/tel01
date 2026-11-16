@@ -19,7 +19,13 @@ class Tutor:
                   history: list[dict], image_data_url: str | None = None) -> str:
         if image_data_url:
             return "النموذج التدريبي الحالي نصّي فقط."
-        prompt = subject_prompt(subject, LEVEL_NAMES[level], question)
+        # A small hint for evaluated model-generated tool suggestions.
+        # Keep the USER question at the end; bytewise GPT retains prompt tail.
+        hint = (
+            "يمكن اقتراح التحقق بكتلة engineering-tool فيها JSON يحتوي "
+            "operation وinputs فقط؛ لا تنفذ العمليات بنفسك. السؤال: "
+        )
+        prompt = subject_prompt(subject, LEVEL_NAMES[level], hint + question)
         # Run CPU inference off the event loop so Telegram remains responsive.
         return await asyncio.to_thread(self.local.answer, prompt)
 
