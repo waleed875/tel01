@@ -53,6 +53,35 @@ class ProposalTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(request.kwargs["json"]["files"]), 2)
             self.assertEqual(request.kwargs["json"]["files"][0]["operation"], "create")
 
+    async def test_existing_files_are_updates_and_identical_files_are_unchanged(self):
+        client = GiteaClient(token="token", owner="testowner")
+        with patch.object(client, "read_file", new_callable=AsyncMock) as read, \
+             patch.object(client, "_call", new_callable=AsyncMock) as call:
+            read.side_effect = GiteaError(404, "missing")
+            first = await build_proposal(client, "engineering-repo",
+                                         user_id=45, project_id=10, config=CONFIG)
+            html, css = first["files"]
+            read.side_effect = [
+                {"data": html["content"].encode("utf-8"), "sha": "a"*40},
+                {"data": b"old css", "sha": "b"*40},
+                {"data": html["content"].encode("utf-8"), "sha": "a"*40},
+                {"data": b"old css", "sha": "b"*40},
+            ]
+            preview = await build_proposal(client, "engineering-repo",
+                                           user_id=45, project_id=10, config=CONFIG)
+            self.assertEqual([f["operation"] for f in preview["files"]],
+                             ["unchanged", "update"])
+            call.return_value = {"commit": {"sha": "c"*40}}
+            result = await commit_proposal(client, "engineering-repo",
+                                           user_id=45, project_id=10,
+                                           config=CONFIG,
+                                           fingerprint=preview["fingerprint"])
+            self.assertEqual(result["changed_paths"], ["sites/engineering/style.css"])
+            operations = call.await_args.kwargs["json"]["files"]
+            self.assertEqual(len(operations), 1)
+            self.assertEqual(operations[0]["operation"], "update")
+            self.assertEqual(operations[0]["sha"], "b"*40)
+
     async def test_changed_existing_git_blob_requires_review_again(self):
         client = GiteaClient(token="token", owner="testowner")
         with patch.object(client, "read_file", new_callable=AsyncMock) as read, \
