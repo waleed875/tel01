@@ -48,3 +48,31 @@ jobs:
         run: python -m compileall -q webapp.py storage.py tutor.py engine knowledge.py questions.py tests
       - name: Unit and PostgreSQL integration tests
         run: python -m unittest discover -s tests -v
+
+  gitea-live:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mathematics-and-physics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated integration dependency
+        run: pip install 'httpx>=0.27,<1'
+      - name: Start disposable Gitea 1.27.3 (SQLite) on loopback
+        run: |
+          docker run -d --name gitea-ci \
+            -p 127.0.0.1:3000:3000 \
+            -e GITEA__database__DB_TYPE=sqlite3 \
+            -e GITEA__security__INSTALL_LOCK=true \
+            -e GITEA__repository__DEFAULT_BRANCH=main \
+            -e GITEA__service__DISABLE_REGISTRATION=true \
+            docker.gitea.com/gitea:1.27.3
+          echo "127.0.0.1 gitea" | sudo tee -a /etc/hosts > /dev/null
+      - name: Verify create, file commits, stale conflict, binary and delete against live Gitea
+        run: python tests/bootstrap_gitea_ci.py
+      - name: Remove ephemeral Gitea service
+        if: always()
+        run: docker rm -f gitea-ci || true
