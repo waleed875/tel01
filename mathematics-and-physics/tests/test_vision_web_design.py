@@ -13,6 +13,7 @@ from vision import describe_image
 from site_builder import build_website
 from engine.vision import PatchVisionEncoder
 from engine.train_vision import train_vision
+from engine.vision_inference import LocalVisionClassifier
 from webapp import app, session_user
 
 
@@ -112,6 +113,11 @@ class PatchVisionTrainTests(unittest.TestCase):
                                weights_only=True, map_location="cpu")
             self.assertEqual(state["labels"], ["blue", "red"])
             self.assertIn("heldout_accuracy", state)
+            classifier = LocalVisionClassifier(str(output / "vision_checkpoint.pt"))
+            prediction = classifier.classify(image_bytes((225, 25, 30)))
+            self.assertIn(prediction["label"], ("red", "blue"))
+            self.assertGreaterEqual(prediction["model_score"], 0.5)
+            self.assertLessEqual(prediction["model_score"], 1.0)
 
 
 if __name__ == "__main__":
