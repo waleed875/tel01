@@ -15,38 +15,28 @@ services:
       retries: 15
     networks: [internal]
 
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    volumes:
-      - ollama_models:/root/.ollama
-    networks: [internal]
-
-  model-init:
-    image: ollama/ollama:latest
-    restart: "no"
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
-    entrypoint: ["/bin/sh", "-c"]
-    command: ['until ollama list >/dev/null 2>&1; do sleep 2; done; ollama pull "$$OLLAMA_MODEL"']
-    depends_on:
-      - ollama
-    networks: [internal]
-
   tutor:
     build: .
     restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-tutor}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-engineering_tutor}
-      OLLAMA_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      MODEL_CHECKPOINT: /app/models/checkpoint.pt
+    volumes:
+      - trained_models:/app/models:ro
     depends_on:
       postgres:
         condition: service_healthy
-      model-init:
-        condition: service_completed_successfully
+    networks: [internal]
+
+  trainer:
+    build: .
+    profiles: ["train"]
+    command: ["python", "-m", "engine.train", "--data", "/app/datasets/engineering.txt", "--output", "/app/models"]
+    user: "0:0"
+    volumes:
+      - trained_models:/app/models
+      - ./datasets:/app/datasets:ro
     networks: [internal]
 
 networks:
@@ -55,4 +45,4 @@ networks:
 
 volumes:
   postgres_data:
-  ollama_models:
+  trained_models:
