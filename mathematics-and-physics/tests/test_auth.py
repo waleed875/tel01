@@ -85,5 +85,36 @@ class LoginAPITests(unittest.TestCase):
             }).status_code, 403)
 
 
+class ProtectedProjectTests(unittest.TestCase):
+    def test_cookie_identity_controls_cross_account_gitea_access(self):
+        class FakeProjectDB:
+            def engineering_project(self, user_id, project_id):
+                if user_id == 1 and project_id == 7:
+                    return {"id": 7, "repo_name": "engineering-private", "deletion_state": "active"}
+                return None
+
+        store = FakeAuthStore()
+        store.sessions["a"*64] = {"user_id": 1, "username": "alice",
+                                  "role": "admin", "csrf_hash": "b"*64}
+        store.sessions["c"*64] = {"user_id": 2, "username": "bob",
+                                  "role": "user", "csrf_hash": "d"*64}
+        with patch("webapp.auth_store", store):
+            from webapp import db
+            from gitea_client import GiteaClient
+            from unittest.mock import AsyncMock
+            app.dependency_overrides[db] = lambda: FakeProjectDB()
+            try:
+                client = TestClient(app)
+                client.cookies.set("engai_auth", "a"*64)
+                with patch.object(GiteaClient, "entries", new_callable=AsyncMock) as entries:
+                    entries.return_value = []
+                    self.assertEqual(client.get("/api/projects/7/files").status_code, 200)
+                    client.cookies.set("engai_auth", "c"*64)
+                    self.assertEqual(client.get("/api/projects/7/files").status_code, 404)
+                    self.assertEqual(entries.await_count, 1)
+            finally:
+                app.dependency_overrides.clear()
+
+
 if __name__ == "__main__":
     unittest.main()
