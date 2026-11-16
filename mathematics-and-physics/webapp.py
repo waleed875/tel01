@@ -19,6 +19,8 @@ from storage import Storage
 from tutor import Tutor, LEVEL_NAMES, SUBJECT_NAMES
 from gitea_client import GiteaClient, GiteaError, MAX_FILE_BYTES, validate_path
 from auth import AuthStore, SESSION_SECONDS
+from vision import describe_image
+from site_builder import build_website
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="Engineering AI Lab", docs_url=None, redoc_url=None)
@@ -63,6 +65,17 @@ class ProjectFileDelete(BaseModel):
 class Settings(BaseModel):
     subject: str
     level: str
+
+
+class ImageAnalyzeRequest(BaseModel):
+    image_base64: str = Field(min_length=12, max_length=2800000)
+
+
+class WebDesignRequest(BaseModel):
+    title: str = Field(min_length=3, max_length=90)
+    description: str = Field(min_length=10, max_length=500)
+    style: str = Field(default="professional")
+    sections: list[str] = Field(min_length=1, max_length=4)
 
 
 class ChatRequest(BaseModel):
@@ -685,6 +698,27 @@ def delete_history(user: Annotated[int, Depends(session_user)],
                    database: Annotated[Storage, Depends(db)]):
     database.clear_history(user)
     return {"ok": True}
+
+
+@app.post("/api/vision/analyze")
+def analyze_uploaded_image(body: ImageAnalyzeRequest,
+                           user: Annotated[int, Depends(session_user)]):
+    """Bounded non-semantic analysis; no uploaded bytes stored in Gitea or DB."""
+    try:
+        payload = base64.b64decode(body.image_base64, validate=True)
+        return describe_image(payload)
+    except (ValueError, binascii.Error) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/design/scaffold")
+def scaffold_web_design(body: WebDesignRequest,
+                        user: Annotated[int, Depends(session_user)]):
+    """Previewable, deterministic design; no Gitea commits or AI claims."""
+    try:
+        return build_website(body.title, body.description, body.style, body.sections)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.post("/api/chat")
