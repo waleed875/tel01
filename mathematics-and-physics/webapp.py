@@ -5,6 +5,7 @@ import binascii
 import re
 import os
 import secrets
+import httpx
 from pathlib import Path
 from functools import lru_cache
 from typing import Annotated
@@ -94,6 +95,14 @@ class ReviewedWebDesignRequest(WebDesignRequest):
 class ApprovedDesignRequest(ReviewedWebDesignRequest):
     fingerprint: str = Field(min_length=75, max_length=90)
     approved: bool = False
+
+
+class ResearchSearchRequest(BaseModel):
+    query: str = Field(min_length=3, max_length=180)
+
+
+class ResearchOpenRequest(BaseModel):
+    url: str = Field(min_length=12, max_length=2048)
 
 
 class ChatRequest(BaseModel):
@@ -826,6 +835,38 @@ def scaffold_web_design(body: WebDesignRequest,
         return result
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+RESEARCH_URL = os.getenv("RESEARCH_SERVICE_URL", "http://ai-browser:8085")
+
+
+async def research_request(endpoint: str, payload: dict):
+    """Only connect to the configured internal research service, never user URLs."""
+    try:
+        async with httpx.AsyncClient(timeout=18, trust_env=False, follow_redirects=False) as client:
+            result = await client.post(RESEARCH_URL + endpoint, json=payload)
+        if result.status_code >= 400:
+            try:
+                detail = result.json().get("detail", "خدمة البحث لم تتمكن من جلب النتائج")
+            except ValueError:
+                detail = "تعذر جلب نتائج البحث"
+            raise HTTPException(result.status_code if result.status_code in (413,415,422) else 502,
+                                detail)
+        return result.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(502, "خدمة المتصفح المحلي غير متاحة؛ تحقق من Docker وSearXNG") from exc
+
+
+@app.post("/api/research/search")
+async def research_search(body: ResearchSearchRequest,
+                          user: Annotated[int, Depends(session_user)]):
+    return await research_request("/search", body.model_dump())
+
+
+@app.post("/api/research/read")
+async def research_read(body: ResearchOpenRequest,
+                        user: Annotated[int, Depends(session_user)]):
+    return await research_request("/read", body.model_dump())
 
 
 @app.post("/api/chat")
