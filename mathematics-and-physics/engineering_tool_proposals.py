@@ -12,7 +12,8 @@ import re
 import secrets
 import time
 
-from engineering_calculators import (OPERATIONS, calculate, _number, _list_numbers,\n                                     MAX_SOURCE_CHARS, MAX_COEFFICIENTS)
+from engineering_calculators import (OPERATIONS, calculate, _number, _list_numbers,
+                                     MAX_SOURCE_CHARS, MAX_COEFFICIENTS)
 
 _KEY = secrets.token_bytes(32)
 _TTL = 10 * 60
