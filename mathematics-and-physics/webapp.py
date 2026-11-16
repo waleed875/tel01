@@ -44,6 +44,13 @@ class ProjectFileWrite(BaseModel):
     message: str = Field(min_length=3, max_length=240)
 
 
+class ProjectFileRename(BaseModel):
+    from_path: str = Field(min_length=1, max_length=500)
+    to_path: str = Field(min_length=1, max_length=500)
+    sha: str = Field(min_length=40, max_length=40)
+    message: str = Field(min_length=3, max_length=240)
+
+
 class ProjectFileDelete(BaseModel):
     path: str = Field(min_length=1, max_length=500)
     sha: str = Field(min_length=40, max_length=40)
@@ -263,6 +270,61 @@ async def project_files(project_id: int,
         raise HTTPException(422, str(exc)) from exc
     return {"files": await GiteaClient().entries(project["repo_name"], path),
             "path": path}
+
+
+@app.post("/api/projects/{project_id}/rename")
+async def rename_project_file(project_id: int, body: ProjectFileRename,
+                              user: Annotated[int, Depends(session_user)],
+                              database: Annotated[Storage, Depends(db)]):
+    project = owned_project(database, user, project_id)
+    try:
+        result = await GiteaClient().rename_file(
+            project["repo_name"], body.from_path, body.to_path,
+            sha=body.sha, message=body.message)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"ok": True, "result": result}
+
+
+def safe_preview_type(path: str, data: bytes) -> str:
+    """Never allow HTML, SVG, executable scripts, or unverified binary previews."""
+    suffix = Path(path).suffix.lower()
+    if suffix == ".pdf" and data.startswith(b"%PDF-"):
+        return "application/pdf"
+    if suffix == ".png" and data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+        return "image/png"
+    if suffix in (".jpg", ".jpeg") and data.startswith(b"\\xff\\xd8\\xff"):
+        return "image/jpeg"
+    if suffix == ".gif" and data.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if suffix == ".webp" and data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return "image/webp"
+    if suffix in (".md", ".markdown", ".txt"):
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            pass
+        else:
+            return "text/plain"
+    raise HTTPException(415, "هذا النوع غير مدعوم في المعاينة الآمنة؛ استخدم التنزيل.")
+
+
+@app.get("/api/projects/{project_id}/preview")
+async def preview_project_file(project_id: int, path: str,
+                               user: Annotated[int, Depends(session_user)],
+                               database: Annotated[Storage, Depends(db)]):
+    project = owned_project(database, user, project_id)
+    try:
+        item = await GiteaClient().read_file(project["repo_name"], path)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    mime = safe_preview_type(path, item["data"])
+    return Response(
+        item["data"], media_type=mime,
+        headers={"Content-Disposition": "inline",
+                 "Cache-Control": "private, no-store",
+                 "X-Content-Type-Options": "nosniff",
+                 "Content-Security-Policy": "sandbox"})
 
 
 @app.get("/api/projects/{project_id}/file")
