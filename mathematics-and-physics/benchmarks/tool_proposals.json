@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "description": "Public benchmark for review-only tool proposal accuracy; never train on these questions. Reference outputs validate harness, not model intelligence.",
+  "tasks": [
+    {
+      "id": "math_poly",
+      "subject": "math",
+      "question": "احسب قيمة الدالة 2x² - 3x + 5 ومشتقتها عند x=4.",
+      "expected": {
+        "operation": "math.polynomial",
+        "inputs": {
+          "coefficients": [
+            2,
+            -3,
+            5
+          ],
+          "x": 4
+        }
+      }
+    },
+    {
+      "id": "math_quadratic",
+      "subject": "math",
+      "question": "حل المعادلة 3x² - 12x + 9 = 0 باستخدام أداة المعادلة التربيعية.",
+      "expected": {
+        "operation": "math.quadratic",
+        "inputs": {
+          "a": 3,
+          "b": -12,
+          "c": 9
+        }
+      }
+    },
+    {
+      "id": "math_no_tool",
+      "subject": "math",
+      "question": "اشرح معنى الاستمرارية عند نقطة دون أرقام أو إجراء حساب.",
+      "expected": null
+    },
+    {
+      "id": "electronics_ohm",
+      "subject": "electronics",
+      "question": "لدائرة مقاومة مثالية جهدها 24 فولت ومقاومتها 8 أوم، احسب التيار والقدرة.",
+      "expected": {
+        "operation": "electronics.ohm",
+        "inputs": {
+          "voltage": 24,
+          "resistance": 8
+        }
+      }
+    },
+    {
+      "id": "electronics_parallel",
+      "subject": "electronics",
+      "question": "احسب المقاومة المكافئة لمقاومتين 30 أوم و60 أوم موصولتين على التوازي.",
+      "expected": {
+        "operation": "electronics.resistors",
+        "inputs": {
+          "resistances": [
+            30,
+            60
+          ],
+          "connection": "parallel"
+        }
+      }
+    },
+    {
+      "id": "electronics_missing",
+      "subject": "electronics",
+      "question": "احسب تيار دائرة إذا علمت فقط أن مقاومتها 15 أوم ولم يعط الجهد.",
+      "expected": null
+    },
+    {
+      "id": "physics_force",
+      "subject": "physics",
+      "question": "ما محصلة القوة لجسم كتلته 7 كغ ويتسارع بمقدار -2 متر/ثانية²؟",
+      "expected": {
+        "operation": "physics.force",
+        "inputs": {
+          "mass": 7,
+          "acceleration": -2
+        }
+      }
+    },
+    {
+      "id": "physics_energy",
+      "subject": "physics",
+      "question": "احسب الطاقة الحركية لكتلة 4 كغ تسير بسرعة 5 م/ث.",
+      "expected": {
+        "operation": "physics.kinetic_energy",
+        "inputs": {
+          "mass": 4,
+          "velocity": 5
+        }
+      }
+    },
+    {
+      "id": "physics_missing",
+      "subject": "physics",
+      "question": "احسب السرعة دون معرفة المسافة المقطوعة أو المدة الزمنية.",
+      "expected": null
+    },
+    {
+      "id": "software_ast",
+      "subject": "software",
+      "question": "حلل بنية كود Python التالي دون تنفيذه:\ndef add(a, b):\n    return a + b",
+      "expected": {
+        "operation": "software.analyze_python",
+        "inputs": {
+          "source": "def add(a, b):\n    return a + b"
+        }
+      }
+    },
+    {
+      "id": "software_no_tool",
+      "subject": "software",
+      "question": "اشرح مبدأ فصل المسؤوليات في تصميم البرمجيات، دون تحليل شيفرة.",
+      "expected": null
+    },
+    {
+      "id": "software_ast_bad",
+      "subject": "software",
+      "question": "حلل نحوياً هذا النص كما هو دون تنفيذه: print('hello')",
+      "expected": {
+        "operation": "software.analyze_python",
+        "inputs": {
+          "source": "print('hello')"
+        }
+      }
+    }
+  ]
+}
