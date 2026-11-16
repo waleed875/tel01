@@ -73,11 +73,16 @@ in the project explorer.
   are designed and tested.
 - Store the Gitea token only in `.env` on the server; never commit it or
   give it to browsers. All REST calls use fixed `http://gitea:3000`.
-- The project stores file *contents and revision history* in Gitea, but only
-  session/project mappings in PostgreSQL. The current deletion route does not
-  remove every Gitea repository automatically when a browser session is
-  deleted: these need an explicit, owner-authorized lifecycle feature before
-  public deployment.
+- File contents and Git history live in Gitea; PostgreSQL stores project mappings.
+  To delete a project, use **حذف المستودع** from the project list. This first
+  marks the mapping as deleting, then deletes the remote Git repository, then
+  removes the mapping. If Gitea is unavailable, the project stays in a retryable
+  deleting state. This is **destructive**: back up repositories before deleting.
+- Deleting the browser session is **blocked** while any Gitea projects are
+  mapped to it; delete the projects first. If you lose your browser session
+  cookie, an administrator may need to recover the repositories manually.
+- Project archival/restore and full cross-system backup verification are still
+  tracked in GitHub Issue #8. Training checkpoint deletion is separate (#5).
 - Download and upload file limit: 2 MiB per file. For larger schematics, CAD
   archives, media, or Git LFS, add a separate design with resource limits.
 - No autonomous AI write access is granted. All edits are explicitly initiated
