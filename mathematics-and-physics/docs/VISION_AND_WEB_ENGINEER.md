@@ -138,3 +138,30 @@ Next stage: assess licensed image-caption datasets, improve tokenizer/context
 length, add a proper dataset manifest, held-out diagram QA tests and a gated
 multimodal inference endpoint, *then* connect to an owner-reviewed website
 code-generation workflow. See Issues #16, #17, #18.
+
+## Review generated website changes in Gitea (Issue #17)
+
+1. Generate the local HTML/CSS website scaffold and inspect its sandboxed preview.
+2. Select an **existing active software project** from the Gitea project selector.
+3. Enter a destination inside `sites/<your-project>` or
+   `websites/<your-project>`; paths outside these directories are rejected.
+4. Click **عرض الفروقات قبل الحفظ** and inspect both full unified source diffs.
+   The server reads existing files and captures Git blob hashes. A file that
+   does not exist appears as a proposed create, not an overwrite.
+5. Click **أوافق على التغييرات** only after reviewing them. The server
+   regenerates files itself, checks ownership and project state, validates
+   the signed 10-minute proposal fingerprint and source hashes, then asks
+   Gitea for **one multi-file Git commit**. If either file has changed since
+   the review, the approval is refused and new diffs must be reviewed.
+6. Use Gitea commit history for auditing and reverting unwanted changes.
+
+This is still a **deterministic template generator**, not free-form
+intelligent site design. It never executes arbitrary user code, never runs
+generated JavaScript inside previews, and does not auto-commit without explicit
+approval. The preview is sandboxed and new content is escaped before inclusion
+in HTML. No MinIO or external model service is used.
+
+Only the HTML/CSS starter files are currently handled in this workflow.
+True model-generated site layouts, comprehensive headless-browser accessibility
+checks and visual screenshot-to-frontend comparisons remain in Issues #17 and
+#18. Test this workflow on a disposable local project first.
