@@ -67,6 +67,16 @@ class PostgresTests(unittest.TestCase):
         self.assertTrue(any(p["id"] == project["id"] for p in own))
         self.assertFalse(any(p["id"] == project["id"]
                              for p in self.db.list_engineering_projects(self.uid + 1)))
+        with self.assertRaises(ValueError):
+            self.db.delete_user(self.uid)
+        self.assertEqual(
+            self.db.begin_engineering_project_deletion(self.uid, project["id"])["deletion_state"],
+            "deleting",
+        )
+        self.assertFalse(self.db.finish_engineering_project_deletion(self.uid + 1, project["id"]))
+        self.assertTrue(self.db.finish_engineering_project_deletion(self.uid, project["id"]))
+        self.assertEqual(self.db.list_engineering_projects(self.uid), [])
+
 
     def test_training_requires_approved_examples(self):
         for n in range(12):
