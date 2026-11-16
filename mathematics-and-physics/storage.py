@@ -35,6 +35,7 @@ class Storage:
                 status TEXT NOT NULL DEFAULT 'draft',
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )""")
+            db.execute("""ALTER TABLE training_examples ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ""")
             db.execute("""CREATE INDEX IF NOT EXISTS training_examples_user_idx
                 ON training_examples(user_id, id DESC)""")
             db.execute("""CREATE TABLE IF NOT EXISTS ai_usage (
@@ -131,6 +132,38 @@ class Storage:
                 """SELECT id, subject, question, answer, status, created_at
                    FROM training_examples WHERE user_id=%s ORDER BY id DESC LIMIT %s""",
                 (user_id, min(max(limit, 1), 250)),
+            ).fetchall()
+
+    def review_training_example(self, user_id: int, example_id: int, action: str):
+        """Explicitly approve or revoke an example owned by the current session."""
+        if action not in ("approved", "draft"):
+            raise ValueError("Invalid review action")
+        with self._connect() as db:
+            return db.execute(
+                """UPDATE training_examples SET status=%s,
+                   reviewed_at=CASE WHEN %s='approved' THEN NOW() ELSE NULL END
+                   WHERE id=%s AND user_id=%s
+                   RETURNING id, subject, question, answer, status, created_at, reviewed_at""",
+                (action, action, example_id, user_id),
+            ).fetchone()
+
+    def training_counts(self, user_id: int):
+        with self._connect() as db:
+            result = db.execute(
+                """SELECT COUNT(*) FILTER(WHERE status='draft') AS draft,
+                          COUNT(*) FILTER(WHERE status='approved') AS approved
+                   FROM training_examples WHERE user_id=%s""",
+                (user_id,),
+            ).fetchone()
+            return {"draft": result["draft"], "approved": result["approved"]}
+
+    def approved_training_examples(self, user_id: int):
+        with self._connect() as db:
+            return db.execute(
+                """SELECT id, subject, question, answer FROM training_examples
+                   WHERE user_id=%s AND status='approved'
+                   ORDER BY id ASC""",
+                (user_id,),
             ).fetchall()
 
     def training_example_count(self, user_id: int):
