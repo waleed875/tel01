@@ -224,6 +224,8 @@ async def security_headers(request: Request, call_next):
             if not auth_store.verify_csrf(token, csrf):
                 return Response("CSRF verification failed", status_code=403)
     response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
