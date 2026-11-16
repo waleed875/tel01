@@ -77,7 +77,7 @@ async def build_proposal(client: GiteaClient, repo_name: str, *, user_id: int,
             fromfile="a/" + target if previous else "/dev/null",
             tofile="b/" + target, n=3))
         if len(diff) > _MAX_DIFF_CHARS:
-            diff = diff[:_MAX_DIFF_CHARS] + "\n...diff truncated; use file download to review full output..."
+            raise ValueError("Diff exceeds the safe review limit; review the files manually")
         files.append({"path": target, "sha": revision, "content": content,
                       "operation": action, "diff": diff})
     expires_at = int(time.time()) + _PROPOSAL_TTL if expires_at is None else expires_at
