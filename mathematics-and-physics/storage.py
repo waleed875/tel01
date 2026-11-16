@@ -69,6 +69,16 @@ class Storage:
                 validation_loss DOUBLE PRECISION,
                 PRIMARY KEY(job_id, step)
             )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS engineering_projects (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                title TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                repo_name TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )""")
+            db.execute("""CREATE INDEX IF NOT EXISTS engineering_projects_owner_idx
+                ON engineering_projects(user_id,id DESC)""")
             db.execute("""CREATE TABLE IF NOT EXISTS ai_usage (
                 user_id BIGINT NOT NULL, day DATE NOT NULL, count INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY(user_id, day))""")
@@ -378,9 +388,37 @@ class Storage:
                  heldout_loss, job_id),
             )
 
+    def create_engineering_project(self, user_id: int, title: str, kind: str, repo_name: str):
+        if kind not in {"software", "electronics", "physics", "math", "general"}:
+            raise ValueError("Invalid project type")
+        self.ensure(user_id)
+        with self._connect() as db:
+            return db.execute(
+                """INSERT INTO engineering_projects(user_id,title,kind,repo_name)
+                   VALUES(%s,%s,%s,%s)
+                   RETURNING id,title,kind,repo_name,created_at""",
+                (user_id, title, kind, repo_name),
+            ).fetchone()
+
+    def list_engineering_projects(self, user_id: int):
+        with self._connect() as db:
+            return db.execute(
+                """SELECT id,title,kind,created_at FROM engineering_projects
+                   WHERE user_id=%s ORDER BY id DESC LIMIT 100""",
+                (user_id,),
+            ).fetchall()
+
+    def engineering_project(self, user_id: int, project_id: int):
+        with self._connect() as db:
+            return db.execute(
+                """SELECT id,title,kind,repo_name,created_at FROM engineering_projects
+                   WHERE user_id=%s AND id=%s""",
+                (user_id, project_id),
+            ).fetchone()
+
     def delete_user(self, user_id: int):
         with self._connect() as db:
             db.execute("""DELETE FROM training_metrics WHERE job_id IN
                           (SELECT id FROM training_jobs WHERE user_id=%s)""", (user_id,))
-            for table, col in (("active_models", "user_id"), ("training_jobs", "user_id"), ("training_examples", "user_id"), ("web_sessions", "user_id"), ("users", "id"), ("active_quiz", "user_id"), ("history", "user_id"), ("ai_usage", "user_id")):
+            for table, col in (("active_models", "user_id"), ("training_jobs", "user_id"), ("training_examples", "user_id"), ("engineering_projects", "user_id"), ("web_sessions", "user_id"), ("users", "id"), ("active_quiz", "user_id"), ("history", "user_id"), ("ai_usage", "user_id")):
                 db.execute(f"DELETE FROM {table} WHERE {col}=%s", (user_id,))
