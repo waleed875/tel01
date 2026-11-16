@@ -5,11 +5,11 @@ import secrets
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Request, Response, Cookie, Depends
+from fastapi import FastAPI, HTTPException, Request, Response, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from knowledge import find_references, format_references
+from knowledge import find_references
 from questions import BY_ID, select_question
 from storage import Storage
 from tutor import Tutor, LEVEL_NAMES, SUBJECT_NAMES
@@ -39,6 +39,43 @@ class ChatRequest(BaseModel):
 class AnswerRequest(BaseModel):
     question_id: str = Field(min_length=1, max_length=80)
     choice: int = Field(ge=0, le=3)
+
+
+CURRICULUM = {
+    "math": [
+        {"title": "الجبر والدوال", "level": "beginner", "description": "المعادلات الأساسية وتمثيل الدوال"},
+        {"title": "التفاضل والتكامل", "level": "highschool", "description": "معدلات التغير ومساحات المنحنيات"},
+        {"title": "الجبر الخطي", "level": "university", "description": "المتجهات والمصفوفات والتطبيقات"},
+    ],
+    "physics": [
+        {"title": "الحركة وقوانين نيوتن", "level": "beginner", "description": "القوة والتسارع والطاقة"},
+        {"title": "الكهرباء والمغناطيسية", "level": "highschool", "description": "الحقول والتيارات والدارات"},
+        {"title": "الميكانيكا التطبيقية", "level": "university", "description": "نمذجة الأنظمة الفيزيائية"},
+    ],
+    "software": [
+        {"title": "أساسيات البرمجة", "level": "beginner", "description": "المتغيرات والدوال والمنطق"},
+        {"title": "الخوارزميات وهياكل البيانات", "level": "intermediate", "description": "حل المسائل وتعقيد التنفيذ"},
+        {"title": "تصميم الأنظمة", "level": "university", "description": "واجهات API وقواعد البيانات والاختبار"},
+    ],
+    "electronics": [
+        {"title": "قانون أوم والدارات", "level": "beginner", "description": "الجهد والتيار والمقاومات"},
+        {"title": "منطق الدارات الرقمية", "level": "intermediate", "description": "البوابات والمنطق الثنائي"},
+        {"title": "الأنظمة المدمجة", "level": "university", "description": "المتحكمات والمستشعرات والاتصال"},
+    ],
+}
+
+PROJECTS = [
+    {"title": "حاسبة الدارات الكهربائية", "subject": "electronics", "description": "احسب المقاومة والتيار والقدرة باستخدام قانون أوم", "difficulty": "مبتدئ"},
+    {"title": "محاكاة حركة جسم", "subject": "physics", "description": "طبّق العلاقة بين المسافة والسرعة والزمن", "difficulty": "متوسط"},
+    {"title": "محلل تعقيد خوارزمية", "subject": "software", "description": "قارن بين أساليب البحث والفرز", "difficulty": "متوسط"},
+    {"title": "اشتقاق الدوال", "subject": "math", "description": "تدرّب على مشتقات الحدود متعددة القوى", "difficulty": "متوسط"},
+]
+
+
+class TrainingExampleRequest(BaseModel):
+    subject: str
+    question: str = Field(min_length=8, max_length=1800)
+    answer: str = Field(min_length=8, max_length=5000)
 
 
 @app.on_event("startup")
@@ -101,6 +138,50 @@ def css():
 @app.get("/static/app.js")
 def js():
     return FileResponse(BASE / "static" / "app.js", media_type="text/javascript")
+
+
+@app.get("/api/catalog")
+def catalog():
+    """Curriculum and example projects are static; never present them as mastered content."""
+    return {"curriculum": CURRICULUM, "projects": PROJECTS, "subjects": SUBJECT_NAMES,
+            "levels": LEVEL_NAMES}
+
+
+@app.get("/api/model/status")
+def model_status():
+    path = Path(os.getenv("MODEL_CHECKPOINT", "/app/models/checkpoint.pt"))
+    return {
+        "checkpoint_available": path.is_file(),
+        "checkpoint_size_bytes": path.stat().st_size if path.is_file() else 0,
+        "backend": "custom-transformer",
+        "training_note": "وجود أوزان لا يعني أن النموذج مؤهل أو دقيق؛ البيانات الحالية تجريبية.",
+    }
+
+
+@app.get("/api/datasets")
+def training_examples(user: Annotated[int, Depends(session_user)],
+                      database: Annotated[Storage, Depends(db)]):
+    return {"examples": database.training_examples(user, 100),
+            "note": "المسودات تحفظ في PostgreSQL فقط ولا تدخل في تدريب النموذج تلقائيًا."}
+
+
+@app.post("/api/datasets", status_code=201)
+def add_example(body: TrainingExampleRequest, user: Annotated[int, Depends(session_user)],
+                database: Annotated[Storage, Depends(db)]):
+    if body.subject not in SUBJECTS:
+        raise HTTPException(422, "التخصص غير صالح")
+    question, answer = body.question.strip(), body.answer.strip()
+    if len(question) < 8 or len(answer) < 8:
+        raise HTTPException(422, "النص قصير جدًا")
+    return database.add_training_example(user, body.subject, question, answer)
+
+
+@app.delete("/api/datasets/{example_id}")
+def delete_example(example_id: int, user: Annotated[int, Depends(session_user)],
+                   database: Annotated[Storage, Depends(db)]):
+    if not database.delete_training_example(user, example_id):
+        raise HTTPException(404, "المثال غير موجود")
+    return {"ok": True}
 
 
 @app.get("/api/health")
