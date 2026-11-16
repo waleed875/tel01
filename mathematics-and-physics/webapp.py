@@ -1,12 +1,15 @@
 """Standalone Arabic engineering AI web application; no Telegram integration."""
 import asyncio
+import base64
+import binascii
+import re
 import os
 import secrets
 from pathlib import Path
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, HTTPException, Request, Response, Depends, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -14,6 +17,7 @@ from knowledge import find_references
 from questions import BY_ID, select_question
 from storage import Storage
 from tutor import Tutor, LEVEL_NAMES, SUBJECT_NAMES
+from gitea_client import GiteaClient, GiteaError, MAX_FILE_BYTES, validate_path
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="Engineering AI Lab", docs_url=None, redoc_url=None)
@@ -26,6 +30,24 @@ COOKIE = "engai_session"
 LEVELS = set(LEVEL_NAMES)
 SUBJECTS = set(SUBJECT_NAMES)
 MAX_PROMPT = 1800
+
+
+class ProjectRequest(BaseModel):
+    title: str = Field(min_length=3, max_length=120)
+    kind: str = Field(default="software")
+
+
+class ProjectFileWrite(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    content_base64: str = Field(min_length=1, max_length=2800000)
+    sha: str | None = None
+    message: str = Field(min_length=3, max_length=240)
+
+
+class ProjectFileDelete(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    sha: str = Field(min_length=40, max_length=40)
+    message: str = Field(min_length=3, max_length=240)
 
 
 class Settings(BaseModel):
@@ -148,6 +170,136 @@ def css():
 @app.get("/static/app.js")
 def js():
     return FileResponse(BASE / "static" / "app.js", media_type="text/javascript")
+
+
+@app.exception_handler(GiteaError)
+async def gitea_error_handler(request: Request, exc: GiteaError):
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=exc.status, content={"detail": exc.detail})
+
+
+def owned_project(database: Storage, user: int, project_id: int):
+    project = database.engineering_project(user, project_id)
+    if project is None:
+        raise HTTPException(404, "المشروع غير موجود أو لا تملك صلاحية الوصول")
+    return project
+
+
+@app.get("/api/gitea/status")
+def gitea_status():
+    client = GiteaClient()
+    return {"configured": client.configured(), "server": "local-only",
+            "note": "يلزم إعداد مستخدم Gitea ورمز وصول خاص بالخادم."}
+
+
+@app.get("/api/projects")
+def list_projects(user: Annotated[int, Depends(session_user)],
+                  database: Annotated[Storage, Depends(db)]):
+    return {"projects": database.list_engineering_projects(user)}
+
+
+@app.post("/api/projects", status_code=201)
+async def create_project(body: ProjectRequest, user: Annotated[int, Depends(session_user)],
+                         database: Annotated[Storage, Depends(db)]):
+    title = body.title.strip()
+    if not 3 <= len(title) <= 120 or body.kind not in {"software", "electronics", "physics", "math", "general"}:
+        raise HTTPException(422, "عنوان المشروع أو نوعه غير صالح")
+    import secrets
+    repo_name = "engineering-" + secrets.token_hex(12)
+    client = GiteaClient()
+    await client.create_repo(repo_name, title)
+    try:
+        item = database.create_engineering_project(user, title, body.kind, repo_name)
+    except Exception:
+        # Compensate for failed DB write: no orphan repo should remain.
+        await client.delete_repo(repo_name)
+        raise
+    return {"id": item["id"], "title": item["title"],
+            "kind": item["kind"], "created_at": item["created_at"]}
+
+
+@app.get("/api/projects/{project_id}/files")
+async def project_files(project_id: int,
+                        user: Annotated[int, Depends(session_user)],
+                        database: Annotated[Storage, Depends(db)],
+                        path: str = Query(default="", max_length=500)):
+    project = owned_project(database, user, project_id)
+    try:
+        validate_path(path, allow_root=True)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"files": await GiteaClient().entries(project["repo_name"], path),
+            "path": path}
+
+
+@app.get("/api/projects/{project_id}/file")
+async def project_file(project_id: int, path: str,
+                       user: Annotated[int, Depends(session_user)],
+                       database: Annotated[Storage, Depends(db)]):
+    project = owned_project(database, user, project_id)
+    try:
+        item = await GiteaClient().read_file(project["repo_name"], path)
+        text = item["data"].decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(415, "هذا ملف ثنائي؛ استخدم تنزيل الملف بدل تحريره كنص.") from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"path": path, "sha": item["sha"], "size": item["size"], "content": text}
+
+
+@app.get("/api/projects/{project_id}/download")
+async def download_project_file(project_id: int, path: str,
+                                user: Annotated[int, Depends(session_user)],
+                                database: Annotated[Storage, Depends(db)]):
+    from urllib.parse import quote
+    project = owned_project(database, user, project_id)
+    try:
+        item = await GiteaClient().read_file(project["repo_name"], path)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    filename = path.split("/")[-1]
+    return Response(item["data"], media_type="application/octet-stream",
+                    headers={"Content-Disposition": "attachment; filename*=UTF-8''" + quote(filename, safe=""),
+                             "X-Content-Type-Options": "nosniff"})
+
+
+@app.post("/api/projects/{project_id}/file")
+async def save_project_file(project_id: int, body: ProjectFileWrite,
+                            user: Annotated[int, Depends(session_user)],
+                            database: Annotated[Storage, Depends(db)]):
+    project = owned_project(database, user, project_id)
+    try:
+        validate_path(body.path)
+        data = base64.b64decode(body.content_base64, validate=True)
+        if len(data) > MAX_FILE_BYTES:
+            raise HTTPException(413, "الحد الأقصى للملف 2 ميغابايت")
+        result = await GiteaClient().write_file(project["repo_name"], body.path, data,
+                                                 sha=body.sha, message=body.message)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"ok": True, "commit": result.get("commit", {}).get("sha"),
+            "sha": result.get("content", {}).get("sha")}
+
+
+@app.delete("/api/projects/{project_id}/file")
+async def remove_project_file(project_id: int, body: ProjectFileDelete,
+                              user: Annotated[int, Depends(session_user)],
+                              database: Annotated[Storage, Depends(db)]):
+    project = owned_project(database, user, project_id)
+    try:
+        validate_path(body.path)
+        result = await GiteaClient().delete_file(project["repo_name"], body.path,
+                                                  body.sha, body.message)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"ok": True, "commit": result.get("commit", {}).get("sha")}
+
+
+@app.get("/api/projects/{project_id}/commits")
+async def project_commits(project_id: int, user: Annotated[int, Depends(session_user)],
+                          database: Annotated[Storage, Depends(db)]):
+    project = owned_project(database, user, project_id)
+    return {"commits": await GiteaClient().commits(project["repo_name"])}
 
 
 @app.get("/api/catalog")
