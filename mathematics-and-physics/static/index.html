@@ -254,6 +254,26 @@
               <small class="help-text">لا تُحفظ أي ملفات في Gitea تلقائيًا؛ يجب مراجعتها والموافقة على كل حفظ يدويًا.</small>
             </div>
           </section>
+          <section class="panel tool-panel">
+            <div class="form-heading"><h3>أدوات التحقق الهندسي للأربعة تخصصات</h3><small>نتائج حتمية وليست استدلالًا من النموذج اللغوي</small></div>
+            <p>حسابات رياضيات وفيزياء وإلكترونيات، وتحليل بنية كود Python دون تشغيله. اختر الأداة وعدّل مدخلات JSON المثال.</p>
+            <form id="engineering-check-form">
+              <label>العملية <select id="engineering-operation" required>
+                <option value="math.polynomial">رياضيات: تقييم كثيرة حدود ومشتقتها</option>
+                <option value="math.quadratic">رياضيات: حل معادلة تربيعية</option>
+                <option value="electronics.ohm">إلكترونيات: قانون أوم</option>
+                <option value="electronics.resistors">إلكترونيات: مقاومات مكافئة</option>
+                <option value="physics.force">فيزياء: القوة</option>
+                <option value="physics.kinetic_energy">فيزياء: الطاقة الحركية</option>
+                <option value="physics.velocity">فيزياء: السرعة المتوسطة</option>
+                <option value="software.analyze_python">برمجيات: تحليل Python دون تنفيذ</option>
+              </select></label>
+              <label>المدخلات (JSON) <textarea id="engineering-inputs" rows="5" dir="ltr" spellcheck="false" required></textarea></label>
+              <button class="primary-btn" id="engineering-check-button" type="submit">تحقق من الحساب</button>
+            </form>
+            <pre id="engineering-result" class="engineering-result" aria-live="polite">اختر العملية لتظهر المدخلات.</pre>
+            <small class="help-text">لا يشغّل هذا القسم كودًا ولا يغيّر ملفات المشاريع. صحة الحساب تعتمد على الوحدات والافتراضات التي تُدخلها.</small>
+          </section>
           <div class="panel tool-panel"><h3>حاسبة قانون أوم <span class="pill">فعّالة</span></h3><p>أدخل الجهد والمقاومة لحساب التيار والقدرة الكهربائية في دائرة مقاومة مثالية.</p>
             <form id="ohm-form" class="field-grid"><label>الجهد (V)<input type="number" id="voltage" step="any" value="12" required></label><label>المقاومة (Ω)<input type="number" id="resistance" step="any" min="0.000001" value="1000" required></label><button type="submit" class="primary-btn">احسب النتيجة</button></form>
             <div id="ohm-result" class="tool-result" aria-live="polite">I = V / R &nbsp; • &nbsp; P = V × I</div>

@@ -160,3 +160,6 @@ footer{padding:20px 30px;color:#6783a2;font-size:11px;border-top:1px solid #2033
 .research-optin input{width:auto}
 .chat-citations{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .chat-citations a{display:inline-block;color:var(--cyan);font-size:12px;text-decoration:underline;overflow-wrap:anywhere}
+
+.engineering-result{max-width:100%;overflow:auto;max-height:420px;white-space:pre-wrap;overflow-wrap:anywhere;direction:ltr;text-align:left;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:16px;line-height:1.75;font-size:13px}
+#engineering-inputs{font-family:Consolas,'Courier New',monospace;direction:ltr;text-align:left;width:100%;min-height:130px}

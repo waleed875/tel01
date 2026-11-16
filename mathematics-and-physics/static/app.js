@@ -721,6 +721,40 @@ async function sendChat(e){
     pending.lastChild.textContent="لم تتوفر إجابة من النموذج: "+err.message+"\nيمكنك استخدام الاختبارات والحاسبة ومسودات البيانات دون أوزان مدرّبة.";
   }finally{appState.loading=false;btn.disabled=false;input.focus();}
 }
+const engineeringExamples={
+  "math.polynomial":{coefficients:[3,2,1],x:2},
+  "math.quadratic":{a:1,b:-3,c:2},
+  "electronics.ohm":{voltage:12,resistance:1000},
+  "electronics.resistors":{resistances:[100,220],connection:"series"},
+  "physics.force":{mass:3,acceleration:4},
+  "physics.kinetic_energy":{mass:2,velocity:3},
+  "physics.velocity":{distance:150,time:30},
+  "software.analyze_python":{source:"def add(x, y):\n    return x + y\n"},
+};
+function resetEngineeringInputs(){
+  const op=$("engineering-operation").value;
+  $("engineering-inputs").value=JSON.stringify(engineeringExamples[op]||{},null,2);
+  $("engineering-result").textContent="أدخل القيم ثم اختر تحقق من الحساب.";
+}
+async function submitEngineeringCheck(event){
+  event.preventDefault();
+  const button=$("engineering-check-button");button.disabled=true;
+  const area=$("engineering-result");
+  try{
+    const inputs=JSON.parse($("engineering-inputs").value);
+    if(!inputs || Array.isArray(inputs) || typeof inputs!=="object"){
+      throw new Error("المدخلات يجب أن تكون كائن JSON.");
+    }
+    const data=await api("engineering/calculate",{method:"POST",body:JSON.stringify({
+      operation:$("engineering-operation").value,inputs
+    })});
+    area.textContent=JSON.stringify({
+      values:data.values,formula:data.formula,
+      assumptions:data.assumptions,notice:data.notice
+    },null,2);
+  }catch(err){area.textContent="تعذر التحقق: "+err.message;}
+  finally{button.disabled=false;}
+}
 function calculateOhm(e){
   e.preventDefault();
   const v=Number($("voltage").value),r=Number($("resistance").value);
@@ -1002,6 +1036,9 @@ function initBindings(){
   $("clear-history").addEventListener("click",async()=>{if(!confirm("مسح المحادثة الحالية؟"))return;try{await api("history",{method:"DELETE"});$("messages").replaceChildren();chatPlaceholder();toast("تم مسح المحادثة");}catch(e){toast(e.message);}});
   $("new-quiz").addEventListener("click",startQuiz);
   $("ohm-form").addEventListener("submit",calculateOhm);
+  $("engineering-check-form").addEventListener("submit",submitEngineeringCheck);
+  $("engineering-operation").addEventListener("change",resetEngineeringInputs);
+  resetEngineeringInputs();
   $("vision-form").addEventListener("submit",analyzeVisionImage);
   $("visual-question-form").addEventListener("submit",askVisualModel);
   $("web-design-form").addEventListener("submit",createWebDesign);

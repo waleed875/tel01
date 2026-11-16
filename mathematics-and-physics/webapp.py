@@ -19,6 +19,7 @@ from questions import BY_ID, select_question
 from storage import Storage
 from tutor import Tutor, LEVEL_NAMES, SUBJECT_NAMES
 from engineering_domains import catalog as domain_catalog
+from engineering_calculators import get_catalog as calculator_catalog, calculate as calculate_engineering
 from gitea_client import GiteaClient, GiteaError, MAX_FILE_BYTES, validate_path
 from auth import AuthStore, SESSION_SECONDS
 from vision import describe_image
@@ -104,6 +105,11 @@ class ResearchSearchRequest(BaseModel):
 
 class ResearchOpenRequest(BaseModel):
     url: str = Field(min_length=12, max_length=2048)
+
+
+class EngineeringCalculateRequest(BaseModel):
+    operation: str = Field(min_length=5, max_length=80)
+    inputs: dict = Field(default_factory=dict)
 
 
 class ChatRequest(BaseModel):
@@ -591,6 +597,21 @@ async def project_commits(project_id: int, user: Annotated[int, Depends(session_
                           database: Annotated[Storage, Depends(db)]):
     project = owned_project(database, user, project_id)
     return {"commits": await GiteaClient().commits(project["repo_name"])}
+
+
+@app.get("/api/engineering/tools")
+def engineering_tools(user: Annotated[int, Depends(session_user)]):
+    return calculator_catalog()
+
+
+@app.post("/api/engineering/calculate")
+def engineering_calculate(body: EngineeringCalculateRequest,
+                          user: Annotated[int, Depends(session_user)]):
+    """Stateless verified calculations; no GPT inference, storage or code exec."""
+    try:
+        return calculate_engineering(body.operation, body.inputs)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/api/catalog")
