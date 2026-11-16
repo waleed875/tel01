@@ -93,3 +93,21 @@ footer{padding:20px 30px;color:#6783a2;font-size:11px;border-top:1px solid #2033
 .repo-delete{border:1px solid #935464;border-radius:8px;padding:8px 10px;color:#ffd1dc;background:#402337;text-align:center;font-size:12px}
 .repo-delete:hover{background:#613248}
 .repo-delete:disabled{opacity:.55}
+
+.explorer-search{border-top:1px solid #29415b;margin:18px 0;padding-top:15px}
+.explorer-search label{display:block;color:#a9c5dc;margin-bottom:9px}
+.explorer-search-fields{display:flex;gap:9px;align-items:center}
+.explorer-search-fields input{flex:1;min-width:0}
+#project-search-results{margin-top:10px}
+#project-search-results .file-name{display:block;width:100%;border-bottom:1px solid #28425b}
+#project-search-results .help-text{padding:10px}
+
+.file-preview-panel,.file-rename-panel{border-top:1px solid #29415b;margin-top:20px;padding-top:15px}
+.preview-content{border:1px solid #365475;background:#0c1929;min-height:80px;max-height:540px;overflow:auto;border-radius:10px;display:flex;justify-content:center;align-items:center}
+.preview-image{max-height:520px;max-width:100%;object-fit:contain}
+.preview-pdf{width:100%;height:480px;border:0;background:#fff}
+.preview-markdown{white-space:pre-wrap;overflow-wrap:anywhere;padding:18px;width:100%;font-family:inherit;line-height:1.9;text-align:right;direction:auto;unicode-bidi:plaintext;color:#dceefa}
+.file-rename-panel .explorer-search-fields{margin:10px 0}
+.file-preview-panel .help-text{padding:8px}
+[data-theme="light"] .preview-content{background:#e9f2fd}
+[data-theme="light"] .preview-markdown{color:#21354d}

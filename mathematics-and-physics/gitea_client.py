@@ -166,6 +166,67 @@ class GiteaClient:
             self._repo_prefix(name) + "/contents/" + quote(path, safe="/"),
             json={"sha": sha, "message": message[:240], "branch": "main"})
 
+    async def rename_file(self, name: str, old_path: str, new_path: str,
+                          *, sha: str, message: str) -> dict:
+        """Perform a safe, single-commit Gitea rename with optimistic locking."""
+        old_path = validate_path(old_path)
+        new_path = validate_path(new_path)
+        if old_path == new_path:
+            raise ValueError("The destination path must differ from the original")
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise ValueError("Invalid source revision SHA")
+        if not 3 <= len(message.strip()) <= 240:
+            raise ValueError("Invalid commit message")
+        current = await self.read_file(name, old_path)
+        if current["sha"] != sha:
+            raise GiteaError(409, "تغيّر الملف الأصلي، افتح آخر إصدار ثم حاول النقل.")
+        # Reject existing destinations before sending the atomic change request.
+        try:
+            await self.read_file(name, new_path)
+        except GiteaError as exc:
+            if exc.status != 404:
+                if exc.status in (413, 415, 422):
+                    raise GiteaError(409, "مسار الوجهة موجود بالفعل") from exc
+                raise
+        else:
+            raise GiteaError(409, "لا يمكن الاستبدال: ملف الوجهة موجود بالفعل")
+        return await self._call("POST", self._repo_prefix(name) + "/contents",
+                                json={"branch": "main", "message": message.strip(),
+                                      "files": [{"operation": "rename", "path": new_path,
+                                                 "from_path": old_path, "sha": sha}]})
+
+    async def search_paths(self, name: str, query: str, *, max_pages: int = 5) -> dict:
+        """Bounded filename/path discovery using Gitea's paginated recursive Git tree."""
+        validated_repo_name(name)
+        search = query.strip().casefold()
+        if not (2 <= len(search) <= 100):
+            raise ValueError("Search text must contain 2–100 characters")
+        matches = []
+        scanned = 0
+        complete = True
+        for page in range(1, max_pages + 1):
+            result = await self._call(
+                "GET", self._repo_prefix(name) + "/git/trees/main",
+                params={"recursive": "true", "page": page, "per_page": 100},
+            )
+            entries = result.get("tree", [])
+            if not isinstance(entries, list):
+                raise GiteaError(502, "Invalid Gitea tree response")
+            for item in entries:
+                path = item.get("path")
+                if (item.get("type") != "blob" or not isinstance(path, str)
+                        or len(path) > 500):
+                    continue
+                scanned += 1
+                if search in path.casefold():
+                    matches.append({"path": path, "size": item.get("size"),
+                                    "sha": item.get("sha"), "type": "file"})
+            if not result.get("truncated", False):
+                break
+            if page == max_pages:
+                complete = False
+        return {"matches": matches, "complete": complete, "scanned": scanned}
+
     async def commits(self, name: str) -> list[dict]:
         items = await self._call("GET", self._repo_prefix(name) + "/commits",
                                  params={"sha": "main", "limit": 20})

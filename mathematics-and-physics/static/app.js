@@ -197,6 +197,8 @@ async function openProject(item){
   $("project-explorer").classList.remove("hidden");
   $("explorer-title").textContent="ملفات "+item.title;
   $("folder-path").value="";
+  $("project-file-search").value="";
+  $("project-search-results").classList.add("hidden");
   resetEditor();
   await browseProject("");
   $("project-explorer").scrollIntoView({behavior:"smooth",block:"start"});
@@ -206,6 +208,7 @@ function resetEditor(){
   repoState.path="";
   $("file-editor").value="";
   $("editor-filepath").value="";
+  $("rename-destination").value="";
   $("editor-revision").textContent="ملف جديد: لن يتم تعديل ملف موجود دون اختيار إصداره.";
 }
 async function browseProject(path){
@@ -225,7 +228,7 @@ async function browseProject(path){
       const file=mk("div","file-row");
       const btn=mk("button","file-name",(entry.type==="dir"?"📁 ":"📄 ")+entry.name);
       btn.type="button";
-      btn.addEventListener("click",()=>entry.type==="dir"?browseProject(entry.path):loadProjectFile(entry.path));
+      btn.addEventListener("click",()=>entry.type==="dir"?browseProject(entry.path):selectProjectFile(entry.path));
       file.append(btn);
       if(entry.type==="file"){
         const dl=mk("button","file-download","تنزيل");
@@ -236,6 +239,135 @@ async function browseProject(path){
     if(!result.files.length)root.append(mk("p","help-text","هذا المجلد فارغ."));
   }catch(e){toast("تعذر استعراض المجلد: "+e.message);}
 }
+async function searchProjectFiles(){
+  if(repoState.id===null)return;
+  const q=$("project-file-search").value.trim();
+  if(q.length<2){toast("اكتب حرفين على الأقل للبحث");return;}
+  const root=$("project-search-results");
+  root.classList.remove("hidden");
+  root.replaceChildren(mk("p","help-text","جارٍ البحث في ملفات المستودع..."));
+  try{
+    const result=await api("projects/"+repoState.id+"/search?query="+encodeURIComponent(q));
+    root.replaceChildren();
+    const status=mk("p","help-text",result.matches.length+" نتيجة"+(result.complete?"":" • النتائج جزئية: البحث محدود بحجم المستودع"));
+    root.append(status);
+    for(const item of result.matches){
+      const row=mk("button","file-name", "📄 "+item.path);
+      row.type="button";
+      row.addEventListener("click",()=>selectProjectFile(item.path));
+      root.append(row);
+    }
+  }catch(e){root.replaceChildren(mk("p","help-text",e.message));}
+}
+
+function isPreviewable(path){
+  return /\.(?:pdf|png|jpe?g|gif|webp|md|markdown|txt)$/i.test(path);
+}
+function renderMarkdownSafely(raw){
+  // Deliberately use textContent only: embedded HTML must never execute.
+  const container=mk("div","preview-markdown formatted-markdown");
+  let code=null;
+  for(const line of raw.split("\n")){
+    if(/^\s*```/.test(line)){
+      if(code){code=null;}else{code=mk("pre","markdown-code");container.append(code);}
+      continue;
+    }
+    if(code){code.append(mk("div","",line));continue;}
+    const heading=line.match(/^(#{1,5})\s+(.+)$/);
+    if(heading){
+      const level=Math.min(heading[1].length+1,6);
+      container.append(mk("h"+level,"",heading[2]));
+    }else if(/^\s*[-*+]\s+/.test(line)){
+      container.append(mk("div","markdown-list","• "+line.replace(/^\s*[-*+]\s+/,"")));
+    }else if(!line.trim()){
+      container.append(mk("div","markdown-blank",""));
+    }else{
+      container.append(mk("p","",line));
+    }
+  }
+  return container;
+}
+function clearPreview(){
+  const container=$("file-preview-content");
+  container.replaceChildren();
+  $("file-preview-description").textContent="حدد ملف صورة أو PDF أو Markdown لمعاينته.";
+}
+async function previewFile(path){
+  const description=$("file-preview-description");
+  const holder=$("file-preview-content");
+  holder.replaceChildren();
+  description.textContent="معاينة "+path;
+  const url="/api/projects/"+repoState.id+"/preview?path="+encodeURIComponent(path);
+  try{
+    const response=await fetch(url,{credentials:"same-origin"});
+    if(!response.ok){
+      const error=await response.json().catch(()=>({}));
+      throw Error(error.detail||"هذا الملف غير قابل للمعاينة.");
+    }
+    const type=response.headers.get("Content-Type")||"";
+    if(type.startsWith("image/")){
+      const img=mk("img","preview-image");
+      const objectUrl=URL.createObjectURL(await response.blob());
+      img.src=objectUrl;img.alt="معاينة "+path;
+      img.onload=()=>URL.revokeObjectURL(objectUrl);
+      img.onerror=()=>URL.revokeObjectURL(objectUrl);
+      holder.append(img);
+    }else if(type.includes("application/pdf")){
+      const frame=mk("iframe","preview-pdf");
+      frame.src=url;
+      frame.title="معاينة PDF "+path;
+      frame.setAttribute("sandbox","allow-scripts");
+      frame.referrerPolicy="no-referrer";
+      holder.append(frame);
+      holder.append(mk("p","help-text","قد لا تدعم بعض المتصفحات عرض PDF في إطار محمي. استخدم التنزيل عند الحاجة."));
+    }else{
+      holder.append(renderMarkdownSafely(await response.text()));
+    }
+  }catch(e){holder.replaceChildren(mk("p","help-text","فشلت المعاينة: "+e.message));}
+}
+async function selectProjectFile(path){
+  repoState.path=path;
+  repoState.sha=null;
+  $("editor-filepath").value=path;
+  $("rename-destination").value=path;
+  try{
+    const info=await api("projects/"+repoState.id+"/file-metadata?path="+encodeURIComponent(path));
+    repoState.sha=info.sha;
+    $("editor-revision").textContent="إصدار SHA: "+info.sha;
+    if(isPreviewable(path))await previewFile(path);
+    else clearPreview();
+    if(/\.(?:pdf|png|jpe?g|gif|webp)$/i.test(path)){
+      $("file-editor").value="";
+      $("editor-revision").textContent="ملف ثنائي: يمكن معاينته أو نقله أو تنزيله، وليس تحريره كنص.";
+      return;
+    }
+    await loadProjectFile(path);
+  }catch(e){toast("تعذر اختيار الملف: "+e.message);}
+}
+async function renameProjectFile(){
+  if(repoState.id===null||!repoState.sha||!repoState.path){
+    toast("اختر ملفًا موجودًا من المشروع أولًا");return;
+  }
+  const newPath=$("rename-destination").value.trim();
+  if(!newPath||newPath===repoState.path){toast("أدخل اسمًا أو مسارًا جديدًا");return;}
+  if(!confirm("هل تريد نقل "+repoState.path+" إلى "+newPath+" عبر Git Commit واحد؟"))return;
+  const btn=$("rename-file");btn.disabled=true;
+  try{
+    const previous=repoState.path;
+    await api("projects/"+repoState.id+"/rename",{
+      method:"POST",body:JSON.stringify({from_path:previous,to_path:newPath,
+      sha:repoState.sha,message:"Rename "+previous+" to "+newPath})
+    });
+    toast("تم نقل الملف بعملية Git واحدة");
+    clearPreview();
+    resetEditor();
+    const folder=newPath.includes("/")?newPath.split("/").slice(0,-1).join("/"):"";
+    await browseProject(folder);
+    await selectProjectFile(newPath);
+  }catch(e){toast("تعذر نقل الملف: "+e.message+"؛ أعد تحميله عند تعارض الإصدار.");}
+  finally{btn.disabled=false;}
+}
+
 async function loadProjectFile(path){
   try{
     const result=await api("projects/"+repoState.id+"/file?path="+encodeURIComponent(path));
@@ -532,9 +664,15 @@ function initBindings(){
     repoState.id=null;$("project-explorer").classList.add("hidden");loadRepositories();
   });
   $("show-commits").addEventListener("click",showProjectCommits);
+  $("search-project-files").addEventListener("click",searchProjectFiles);
+  $("project-file-search").addEventListener("keydown",ev=>{
+    if(ev.key==="Enter"){ev.preventDefault();searchProjectFiles();}
+  });
   $("save-file").addEventListener("click",saveProjectFile);
   $("new-file").addEventListener("click",resetEditor);
   $("delete-file").addEventListener("click",deleteProjectFile);
+  $("rename-file").addEventListener("click",renameProjectFile);
+  $("close-file-preview").addEventListener("click",clearPreview);
   $("file-upload-form").addEventListener("submit",uploadProjectFile);
   $("site-search").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();findLocal(e.target.value);}});
   document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();$("site-search").focus();}});

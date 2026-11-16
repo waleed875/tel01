@@ -96,3 +96,28 @@ in the project explorer.
 
 This integration uses Gitea's documented contents API, including base64 file
 payloads, blob SHA for updates, and separate create/update/delete operations.
+
+## Project search, previews and renames
+
+Use the **بحث في أسماء الملفات والمجلدات الفرعية** field inside a Gitea
+project to find source files across nested folders. Git tree scanning is
+bounded; results may be partial for very large repositories.
+
+The built-in file preview supports selected safe file types: UTF-8 Markdown
+(displayed as text-only, limited headings/lists/code formatting), text,
+PNG/JPEG/GIF/WebP images, and PDFs. The server checks both extensions and
+file signatures for binary types, limits reads to 2 MiB, forces no-sniff
+responses, and sends sandbox headers for rendered content. Embedded SVG,
+HTML and executable content are not previewed. PDF viewer availability
+depends on browser support for sandboxed documents; download remains
+available.
+
+To rename/move a file, first choose its latest version in the explorer,
+enter a new relative path and press **نقل بعملية Git واحدة**. Gitea
+performs the rename in one commit using the existing file blob SHA.
+An old SHA or existing destination is rejected; refresh the file and
+retry rather than overwriting others' changes. This feature moves a
+**single file**, not whole directory trees.
+
+These operations remain available only in the localhost-only prototype.
+Authentication, full audit logs and public hosting remain separate tasks.

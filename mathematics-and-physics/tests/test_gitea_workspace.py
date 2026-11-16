@@ -73,6 +73,39 @@ class GiteaValidationTests(unittest.TestCase):
             asyncio.run(gitea.delete_file("lab-demo", "main.py", "bad", "Delete file"))
 
 
+class GiteaFileSearchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_recursive_search_with_pagination(self):
+        api_client = GiteaClient(token="test-token", owner="engineering")
+        pages = [
+            {"tree": [
+                {"path": "src/Main.py", "type": "blob", "sha": "a" * 40, "size": 4},
+                {"path": "docs", "type": "tree", "sha": "b" * 40},
+                {"path": "archive/main.py", "type": "blob", "sha": "c" * 40, "size": 5},
+            ], "truncated": True},
+            {"tree": [
+                {"path": "lib/MAIN_TEST.py", "type": "blob", "sha": "d" * 40, "size": 6}
+            ], "truncated": False},
+        ]
+        with patch.object(api_client, "_call", new_callable=AsyncMock) as call:
+            call.side_effect = pages
+            result = await api_client.search_paths("project", "main")
+        self.assertEqual(len(result["matches"]), 3)
+        self.assertEqual(result["scanned"], 3)
+        self.assertTrue(result["complete"])
+        self.assertEqual(call.await_count, 2)
+
+    async def test_reports_truncated_results(self):
+        client = GiteaClient(token="token", owner="owner")
+        with patch.object(client, "_call", new_callable=AsyncMock) as call:
+            call.return_value = {
+                "tree": [{"path": "src/power.py", "type": "blob", "sha": "a" * 40}],
+                "truncated": True,
+            }
+            result = await client.search_paths("project", "power", max_pages=2)
+        self.assertFalse(result["complete"])
+        self.assertEqual(call.await_count, 2)
+
+
 class ProjectAPIIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.storage = FakeStorage()
@@ -82,6 +115,22 @@ class ProjectAPIIntegrationTests(unittest.TestCase):
 
     def tearDown(self):
         app.dependency_overrides.clear()
+
+    def test_project_search_requires_ownership(self):
+        self.storage.create_engineering_project(22, "Robotics", "electronics",
+                                                "engineering-search-test")
+        with patch.object(GiteaClient, "search_paths", new_callable=AsyncMock) as search:
+            search.return_value = {
+                "matches": [{"path": "src/circuit.py", "type": "file"}],
+                "complete": True, "scanned": 4
+            }
+            response = self.client.get("/api/projects/1/search?query=circuit")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["matches"][0]["path"], "src/circuit.py")
+            self.assertEqual(self.client.get("/api/projects/1/search?query=a").status_code, 422)
+            app.dependency_overrides[session_user] = lambda: 33
+            self.assertEqual(self.client.get("/api/projects/1/search?query=circuit").status_code, 404)
+            self.assertEqual(search.await_count, 1)
 
     def test_private_repo_creation_and_owner_isolation(self):
         with patch.object(GiteaClient, "create_repo", new_callable=AsyncMock) as create:
