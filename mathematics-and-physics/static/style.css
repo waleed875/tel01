@@ -86,3 +86,10 @@ footer{padding:20px 30px;color:#6783a2;font-size:11px;border-top:1px solid #2033
 .commit-row:last-child{border-bottom:0}
 [data-theme="light"] .repo-row,[data-theme="light"] .file-list,[data-theme="light"] .commit-list{background:#e8f3ff;color:#1b3755}
 [data-theme="light"] .file-name{color:#183c64}
+
+.repo-card{border-radius:12px;border:1px solid #315475;background:#14253c;padding:8px;display:flex;flex-direction:column;gap:6px}
+.repo-card .repo-row{width:100%;border:0;padding:12px;background:transparent}
+.repo-card .repo-row:hover{background:#1c3c5c}
+.repo-delete{border:1px solid #935464;border-radius:8px;padding:8px 10px;color:#ffd1dc;background:#402337;text-align:center;font-size:12px}
+.repo-delete:hover{background:#613248}
+.repo-delete:disabled{opacity:.55}
