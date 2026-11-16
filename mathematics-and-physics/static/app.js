@@ -702,8 +702,21 @@ async function sendChat(e){
   addMessage("user",q);input.value="";
   const pending=addMessage("assistant","جارٍ محاولة التوليد من النموذج المحلي...");
   try{
-    const result=await api("chat",{method:"POST",body:JSON.stringify({question:q})});
+    const result=await api("chat",{method:"POST",body:JSON.stringify({
+      question:q,use_research:$("chat-research").checked
+    })});
     pending.lastChild.textContent=result.answer+"\n\nتنبيه: "+result.notice;
+    if(result.web_sources?.length){
+      const sources=mk("div","chat-citations");
+      sources.append(mk("strong","","مصادر الإنترنت (غير موثقة تلقائيًا):"));
+      for(const item of result.web_sources){
+        const link=mk("a","",item.title||item.url);
+        link.href=item.url;link.target="_blank";link.rel="noopener noreferrer";
+        link.referrerPolicy="no-referrer";
+        sources.append(link);
+      }
+      pending.append(sources);
+    }
   }catch(err){
     pending.lastChild.textContent="لم تتوفر إجابة من النموذج: "+err.message+"\nيمكنك استخدام الاختبارات والحاسبة ومسودات البيانات دون أوزان مدرّبة.";
   }finally{appState.loading=false;btn.disabled=false;input.focus();}
