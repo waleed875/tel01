@@ -22,7 +22,7 @@ def main():
             with urlopen(root + "/api/v1/version", timeout=3) as res:
                 if res.status == 200:
                     break
-        except (HTTPError, URLError, TimeoutError):
+        except (HTTPError, URLError, TimeoutError, ConnectionError, OSError):
             time.sleep(2)
     else:
         raise RuntimeError("Gitea did not start within 180 seconds")
