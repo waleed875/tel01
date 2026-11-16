@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#080f1e">
+  <meta name="description" content="مختبر الذكاء الهندسي: منصة عربية لدراسة الرياضيات والفيزياء والبرمجيات والإلكترونيات وتطوير نموذج محلي خاص.">
+  <title>مختبر الذكاء الهندسي | Engineering AI Lab</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-symbol" aria-hidden="true">◈</div>
+      <div><strong>مختبر الذكاء الهندسي</strong><small>Engineering AI Lab</small></div>
+    </div>
+    <div class="side-label">مساحة العمل</div>
+    <nav id="nav" aria-label="التنقل الرئيسي">
+      <button type="button" class="nav-link active" data-view="home"><span class="nav-icon">⌂</span> الرئيسية</button>
+      <button type="button" class="nav-link" data-view="chat"><span class="nav-icon">▤</span> المحادثة الهندسية</button>
+      <button type="button" class="nav-link" data-view="curriculum"><span class="nav-icon">◇</span> مسار التعلم</button>
+      <button type="button" class="nav-link" data-view="quiz"><span class="nav-icon">☑</span> التمارين والاختبارات</button>
+      <button type="button" class="nav-link" data-view="projects"><span class="nav-icon">⌘</span> المشاريع العملية</button>
+      <button type="button" class="nav-link" data-view="tools"><span class="nav-icon">⚗</span> المختبر والأدوات</button>
+      <button type="button" class="nav-link" data-view="datasets"><span class="nav-icon">▣</span> إدارة بيانات التدريب</button>
+      <button type="button" class="nav-link" data-view="progress"><span class="nav-icon">▥</span> التقدم والإعدادات</button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="chip-art" aria-hidden="true"><div class="chip-core">AI</div></div>
+      <div class="build-id">نسخة تطويرية <span class="live-dot"></span> v0.2</div>
+      <div class="privacy-line">محرك محلي • بلا API خارجي</div>
+    </div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div class="topbar-heading">
+        <span class="mobile-logo">◈</span>
+        <div><small class="overline">ENGINEERING AI WORKSPACE</small><strong id="page-title">الرئيسية</strong></div>
+      </div>
+      <div class="search-wrap"><span aria-hidden="true">⌕</span><input id="site-search" aria-label="بحث في الدروس والمشاريع" placeholder="ابحث في الدروس والمشاريع..." autocomplete="off"><kbd>Ctrl K</kbd></div>
+      <div class="toolbar">
+        <button type="button" id="theme-toggle" class="icon-btn" title="تبديل المظهر" aria-label="تبديل المظهر">☾</button>
+        <span class="avatar" title="جلسة محلية" aria-label="جلسة متصفح محلية">◉</span>
+      </div>
+    </header>
+
+    <div class="body-grid">
+      <main class="main-content">
+        <section class="hero" id="hero">
+          <div class="hero-copy">
+            <div class="eyebrow">مساعدك الذكي في الهندسة <span>● نسخة بحثية</span></div>
+            <h1>تعلّم. جرّب.<br><em>اصنع المعرفة.</em></h1>
+            <p>الرياضيات • الفيزياء • هندسة البرمجيات • هندسة الإلكترونيات</p>
+            <div class="hero-actions">
+              <button type="button" class="primary-btn" data-go="chat">ابدأ محادثة هندسية <span>←</span></button>
+              <button type="button" class="ghost-btn" data-go="curriculum">استعرض المسارات</button>
+            </div>
+          </div>
+          <div class="hero-graphic" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="neural-glyph">◈</div><span class="float-formula f1">∫ x² dx</span><span class="float-formula f2">F = ma</span><span class="float-formula f3">V = IR</span><span class="float-formula f4">{"{"} code {"}"}</span></div>
+        </section>
+
+        <section class="view" id="view-home">
+          <div class="section-header"><div><span class="overline">EXPLORE</span><h2>اختر مجالًا للدراسة</h2></div><button type="button" class="inline-link" data-go="curriculum">جميع المسارات ←</button></div>
+          <div id="home-subjects" class="subject-grid"></div>
+          <div class="section-header space-top"><div><span class="overline">QUICK START</span><h2>ابدأ التعلم الآن</h2></div></div>
+          <div class="feature-grid">
+            <button type="button" class="feature-card" data-go="chat"><span class="feature-symbol blue">✧</span><strong>المحادثة الهندسية</strong><small>اسأل وتدرّب على التحليل العلمي</small><span class="card-arrow">←</span></button>
+            <button type="button" class="feature-card" data-go="quiz"><span class="feature-symbol cyan">✓</span><strong>الاختبارات التفاعلية</strong><small>قِس فهمك بإجابات مشروحة</small><span class="card-arrow">←</span></button>
+            <button type="button" class="feature-card" data-go="datasets"><span class="feature-symbol purple">▦</span><strong>بيانات تدريب النموذج</strong><small>حضّر أمثلة علمية للمراجعة</small><span class="card-arrow">←</span></button>
+          </div>
+          <div class="info-note"><strong>عن ذكاء النموذج</strong><p>المعمارية تمكّن التعلم، والبيانات تشكّل المعرفة، والتقييم يقيس دقة النتائج. نموذجنا الحالي تجريبي ولم يصل بعد إلى مستوى إجابات هندسية موثوقة.</p></div>
+        </section>
+
+        <section class="view hidden" id="view-chat">
+          <div class="panel-head"><div><span class="overline">AI ENGINE</span><h2>المحادثة الهندسية</h2><p>المساعد يعمل بالأوزان المحلية التي ندرّبها نحن. لا تُعرض إجابات تجريبية بوصفها حقائق مؤكدة.</p></div><div id="checkpoint-badge" class="status-pill">فحص النموذج...</div></div>
+          <div class="chat-panel">
+            <div class="chat-head"><div class="mini-logo">◈</div><div><strong>الذكاء الهندسي</strong><small id="model-state-label">نموذج محلي • تجريبي</small></div><button type="button" class="subtle-btn" id="clear-history">مسح المحادثة</button></div>
+            <div id="messages" class="messages" aria-live="polite"><div class="chat-empty"><span>✦</span><strong>ما المسألة التي تريد استكشافها؟</strong><p>ابدأ بسؤال عن قانون أوم أو الخوارزميات أو الميكانيكا أو الجبر.</p></div></div>
+            <form id="chat-form" class="composer"><textarea id="question" rows="2" maxlength="1800" placeholder="اسأل عن مفهوم، أو مسألة، أو مشروع هندسي..." aria-label="نص السؤال" required></textarea><div class="composer-foot"><span>Enter للإرسال • Shift+Enter لسطر جديد</span><button type="submit" id="send" class="primary-btn">إرسال ↗</button></div></form>
+          </div>
+        </section>
+
+        <section class="view hidden" id="view-curriculum">
+          <div class="panel-head"><div><span class="overline">LEARNING PATHS</span><h2>مسارات التعلم</h2><p>مناهج مبدئية موزعة على التخصصات، وليست شهادات إتمام أو محتوى دراسيًا معتمدًا.</p></div></div>
+          <div id="curriculum-content" class="learning-grid"></div>
+        </section>
+
+        <section class="view hidden" id="view-quiz">
+          <div class="panel-head"><div><span class="overline">PRACTICE</span><h2>التمارين والاختبارات</h2><p>اختر مادة الرياضيات أو الفيزياء ثم ابدأ اختبارًا من بنك الأسئلة الحالي.</p></div><button type="button" class="primary-btn" id="new-quiz">سؤال جديد</button></div>
+          <div id="quiz-content" class="panel spacious"><div class="empty-state"><span>◎</span><h3>جاهز للتحدي؟</h3><p>اضغط «سؤال جديد» لبدء الاختبار.</p></div></div>
+        </section>
+
+        <section class="view hidden" id="view-projects">
+          <div class="panel-head"><div><span class="overline">BUILD & LEARN</span><h2>المشاريع العملية</h2><p>أفكار تطبيقية تربط الرياضيات والفيزياء بالبرمجة والإلكترونيات.</p></div></div>
+          <div id="projects-content" class="learning-grid"></div>
+        </section>
+
+        <section class="view hidden" id="view-tools">
+          <div class="panel-head"><div><span class="overline">ENGINEERING TOOLS</span><h2>المختبر الهندسي</h2><p>أداة حساب حقيقية بقانون أوم؛ أدوات أخرى يمكن تطويرها لاحقًا.</p></div></div>
+          <div class="panel tool-panel"><h3>حاسبة قانون أوم <span class="pill">فعّالة</span></h3><p>أدخل الجهد والمقاومة لحساب التيار والقدرة الكهربائية في دائرة مقاومة مثالية.</p>
+            <form id="ohm-form" class="field-grid"><label>الجهد (V)<input type="number" id="voltage" step="any" value="12" required></label><label>المقاومة (Ω)<input type="number" id="resistance" step="any" min="0.000001" value="1000" required></label><button type="submit" class="primary-btn">احسب النتيجة</button></form>
+            <div id="ohm-result" class="tool-result" aria-live="polite">I = V / R &nbsp; • &nbsp; P = V × I</div>
+            <small class="help-text">هذه حاسبة حسابية وليست محاكاة دائرة أو بديلًا عن التحقق من المواصفات والحرارة والسلامة.</small>
+          </div>
+        </section>
+
+        <section class="view hidden" id="view-datasets">
+          <div class="panel-head"><div><span class="overline">DATA PIPELINE</span><h2>إدارة بيانات التدريب</h2><p>أضف أمثلة سؤال وجواب وراجع دقتها قبل اعتمادها للتدريب. اعتماد المثال لا يبدأ التدريب تلقائيًا.</p></div><span class="status-pill">مسودات فقط</span></div>
+          <div class="panel"><form id="dataset-form"><div class="form-heading"><h3>إضافة مثال علمي جديد</h3><small>بيانات من إعدادك أو لديك حق استخدامها فقط</small></div><label>التخصص<select id="dataset-subject"><option value="math">الرياضيات</option><option value="physics">الفيزياء</option><option value="software">هندسة البرمجيات</option><option value="electronics">هندسة الإلكترونيات</option></select></label><label>السؤال<textarea id="dataset-question" minlength="8" maxlength="1800" rows="2" required placeholder="مثال: كيف نحسب التيار في مقاومة؟"></textarea></label><label>الإجابة العلمية المرجعية<textarea id="dataset-answer" minlength="8" maxlength="5000" rows="4" required placeholder="اشرح القانون والتطبيق والوحدات..."></textarea></label><div class="form-actions"><button type="submit" class="primary-btn" id="save-example">حفظ كمسودة</button><small>لا تستخدم المعلومات الخاصة أو غير المرخصة.</small></div></form></div>
+          <div class="section-header space-top"><div><h2>أمثلة التدريب المحفوظة <span id="dataset-count" class="count">0</span> <small id="dataset-stats" class="dataset-stats">0 معتمد • 0 مسودة</small></h2></div></div>
+          <div id="dataset-list" class="dataset-list"></div>
+          <div class="section-header space-top"><div><span class="overline">TRAINING CONTROL</span><h2>تشغيل تدريب جديد</h2></div></div>
+          <div class="panel train-card">
+            <p>يستخدم التدريب فقط الأمثلة التي اعتمدتها أنت. تحتاج على الأقل إلى 12 مثالًا معتمدًا، ويحفظ النموذج إصدارًا جديدًا دون استبدال إصدار آخر.</p>
+            <form id="training-form" class="field-grid">
+              <label>خطوات التدريب <input id="training-steps" type="number" min="50" max="300" step="50" value="100" required></label>
+              <label>البذرة العشوائية <input id="training-seed" type="number" min="0" max="2147483647" step="1" value="42" required></label>
+              <button id="start-training" type="submit" class="primary-btn">ابدأ التدريب</button>
+            </form>
+            <p class="help-text">التدريب قد يحتاج موارد معالج وذاكرة مرتفعة؛ لا تفتح هذه الوظيفة على الإنترنت دون تسجيل دخول وصلاحيات.</p>
+          </div>
+          <div class="section-header space-top"><div><span class="overline">TRAINING RUNS</span><h2>سجل التدريب ومقاييسه</h2></div><button id="refresh-training" type="button" class="inline-link">تحديث الحالة ↻</button></div>
+          <div id="training-jobs" class="dataset-list"></div>
+        </section>
+
+        <section class="view hidden" id="view-progress">
+          <div class="panel-head"><div><span class="overline">MY WORKSPACE</span><h2>التقدم والإعدادات</h2><p>إحصاءات إجاباتي في الاختبارات وبيانات جلسة المتصفح الحالية.</p></div></div>
+          <div class="stats"><div class="stat"><span>إجمالي الأسئلة</span><strong id="attempted">—</strong></div><div class="stat"><span>إجابات صحيحة</span><strong id="correct">—</strong></div><div class="stat"><span>نسبة النجاح</span><strong id="accuracy">—</strong></div></div>
+          <div class="panel"><h3>الخصوصية والتحكم</h3><p>تخزن قاعدة PostgreSQL المحادثات ونتائج الاختبارات ومسودات التدريب المضافة في هذه الجلسة، ويمكن حذف السجلات من PostgreSQL، لكن ملفات التدريب والنماذج المشتقة قد تبقى على قرص Docker حتى تنفيذ مهمة تنظيف مستقلة (Issue #5). لا توجد حسابات تسجيل دخول بعد؛ المشروع مخصص حاليًا للاستضافة المحلية فقط.</p><button type="button" id="delete-account" class="danger-btn">حذف سجلات الجلسة من PostgreSQL</button></div>
+        </section>
+      </main>
+
+      <aside class="right-rail">
+        <div class="rail-card"><h3><span class="title-icon">▥</span> اختر التخصص</h3><div id="subject-picker" class="subject-picker"></div><div class="level-row"><label for="level">المستوى الدراسي</label><select id="level"><option value="beginner">مبتدئ</option><option value="intermediate">متوسط</option><option value="highschool">ثانوي</option><option value="university">جامعي</option></select></div></div>
+        <div class="rail-card"><h3><span class="title-icon">▥</span> تقدمك في التعلم</h3><div class="progress-layout"><div class="progress-ring" id="progress-ring"><strong id="rail-percent">0%</strong></div><div class="progress-details"><span>المستوى: <b id="rail-level">—</b></span><span>أسئلة محلولة: <b id="rail-questions">0</b></span><span>إجابات صحيحة: <b id="rail-correct">0</b></span></div></div></div>
+        <div class="rail-card"><h3><span class="title-icon">⚙</span> أدوات سريعة</h3><div class="quick-grid"><button type="button" data-go="tools"><b>ƒx</b>حسابات هندسية</button><button type="button" data-go="quiz"><b>✓</b>اختبر نفسك</button><button type="button" data-go="datasets"><b>▦</b>بيانات التدريب</button><button type="button" data-go="projects"><b>⌘</b>مشاريع عملية</button></div></div>
+        <div class="rail-card"><h3><span class="title-icon">◉</span> حالة الذكاء الاصطناعي</h3><div class="model-health"><span id="model-dot" class="health-dot"></span><strong id="rail-model">التحقق من الأوزان...</strong></div><p class="rail-note">النموذج الخاص بنا يحتاج بيانات وتدريبًا وتقييمًا قبل الاعتماد على إجاباته.</p><button type="button" class="inline-link" data-go="datasets">إعداد بيانات التدريب ←</button></div>
+      </aside>
+    </div>
+    <footer>Engineering AI Lab <span>•</span> منصة تعليم هندسي تجريبية، الإجابات الآلية غير مضمونة <span>•</span> © مشروع مفتوح التطوير</footer>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
