@@ -21,8 +21,9 @@ nor the training worker receives Docker daemon access.
 
 They are **supported configurations**, not a claim that every library,
 package, build tool, language variant or feature works. The CI smoke suite
-runs Python, JavaScript, C and C++; the remaining languages require additional
-runtime validation before production use. New languages are registered in
+runs all nine language adapters using real disposable Docker containers.
+The tool still requires target-host testing and is not approved for
+production multi-tenant use. New languages are registered in
 `code_runtime/runner.py` after sandbox and functional testing. The model
 cannot execute *all programming languages* without their respective
 compilers/interpreters.
