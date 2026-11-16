@@ -9,3 +9,4 @@ models/
 *.pt
 *.pth
 checkpoints/
+local_backups/

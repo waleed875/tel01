@@ -261,12 +261,14 @@ async def gitea_error_handler(request: Request, exc: GiteaError):
     return JSONResponse(status_code=exc.status, content={"detail": exc.detail})
 
 
-def owned_project(database: Storage, user: int, project_id: int):
+def owned_project(database: Storage, user: int, project_id: int,
+                  *, write: bool = False):
     project = database.engineering_project(user, project_id)
     if project is None:
         raise HTTPException(404, "المشروع غير موجود أو لا تملك صلاحية الوصول")
-    if project.get("deletion_state", "active") != "active":
-        raise HTTPException(409, "المشروع بانتظار إكمال الحذف، ويمكن إعادة محاولة حذفه.")
+    state = project.get("deletion_state", "active")
+    if state not in (("active",) if write else ("active", "archived")):
+        raise HTTPException(409, "حالة المشروع لا تسمح بالعملية المطلوبة؛ أكمل الأرشفة أو الاستعادة أولًا")
     return project
 
 
@@ -322,6 +324,32 @@ async def delete_project(project_id: int,
     return {"ok": True, "deleted_project_id": project_id}
 
 
+@app.post("/api/projects/{project_id}/archive")
+async def archive_project(project_id: int, user: Annotated[int, Depends(session_user)],
+                          database: Annotated[Storage, Depends(db)]):
+    pending = database.mark_project_archive_transition(user, project_id, True)
+    if not pending:
+        raise HTTPException(409, "المشروع غير موجود أو حالته لا تسمح بالأرشفة")
+    await GiteaClient().set_archived(pending["repo_name"], True)
+    state = database.finish_project_archive_transition(user, project_id, True)
+    if not state:
+        raise HTTPException(409, "أرشِف المستودع ولكن تعذر إكمال حالة قاعدة البيانات؛ أعد المحاولة")
+    return {"ok": True, "state": state["deletion_state"]}
+
+
+@app.post("/api/projects/{project_id}/restore")
+async def restore_project(project_id: int, user: Annotated[int, Depends(session_user)],
+                          database: Annotated[Storage, Depends(db)]):
+    pending = database.mark_project_archive_transition(user, project_id, False)
+    if not pending:
+        raise HTTPException(409, "المشروع غير موجود أو حالته لا تسمح بالاستعادة")
+    await GiteaClient().set_archived(pending["repo_name"], False)
+    state = database.finish_project_archive_transition(user, project_id, False)
+    if not state:
+        raise HTTPException(409, "استُعيد المستودع ولكن تعذر إكمال قاعدة البيانات؛ أعد المحاولة")
+    return {"ok": True, "state": state["deletion_state"]}
+
+
 @app.get("/api/projects/{project_id}/search")
 async def search_project_files(project_id: int,
                                user: Annotated[int, Depends(session_user)],
@@ -352,7 +380,7 @@ async def project_files(project_id: int,
 async def rename_project_file(project_id: int, body: ProjectFileRename,
                               user: Annotated[int, Depends(session_user)],
                               database: Annotated[Storage, Depends(db)]):
-    project = owned_project(database, user, project_id)
+    project = owned_project(database, user, project_id, write=True)
     try:
         result = await GiteaClient().rename_file(
             project["repo_name"], body.from_path, body.to_path,
@@ -450,7 +478,7 @@ async def download_project_file(project_id: int, path: str,
 async def save_project_file(project_id: int, body: ProjectFileWrite,
                             user: Annotated[int, Depends(session_user)],
                             database: Annotated[Storage, Depends(db)]):
-    project = owned_project(database, user, project_id)
+    project = owned_project(database, user, project_id, write=True)
     try:
         validate_path(body.path)
         data = base64.b64decode(body.content_base64, validate=True)
@@ -468,7 +496,7 @@ async def save_project_file(project_id: int, body: ProjectFileWrite,
 async def remove_project_file(project_id: int, body: ProjectFileDelete,
                               user: Annotated[int, Depends(session_user)],
                               database: Annotated[Storage, Depends(db)]):
-    project = owned_project(database, user, project_id)
+    project = owned_project(database, user, project_id, write=True)
     try:
         validate_path(body.path)
         result = await GiteaClient().delete_file(project["repo_name"], body.path,

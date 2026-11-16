@@ -170,10 +170,11 @@ async function loadRepositories(){
     }
     for(const project of data.projects){
       const box=mk("div","repo-card");
-      const pending=project.deletion_state==="deleting";
+      const state=project.deletion_state||"active";
+      const pending=state==="deleting"||state==="archiving"||state==="restoring";
       const button=mk("button","repo-row",project.title);
       button.type="button";button.disabled=pending;
-      button.append(mk("small","",pending?"حذف غير مكتمل":(SUBJECTS[project.kind]?.label||project.kind)));
+      button.append(mk("small","",pending?"عملية غير مكتملة":state==="archived"?"مؤرشف • قراءة فقط":(SUBJECTS[project.kind]?.label||project.kind)));
       button.addEventListener("click",()=>openProject(project));
       const remove=mk("button","repo-delete",pending?"إعادة محاولة الحذف":"حذف المستودع");
       remove.type="button";
@@ -189,12 +190,27 @@ async function loadRepositories(){
         }catch(err){toast("لم يكتمل الحذف: "+err.message);}
         finally{await loadRepositories();}
       });
-      box.append(button,remove);root.append(box);
+      const archive=mk("button","ghost-btn archive-control",state==="archived"||state==="restoring"?"استعادة المشروع":"أرشفة المشروع");
+      archive.type="button";archive.disabled=state==="deleting";
+      archive.addEventListener("click",async()=>{
+        const restore=state==="archived"||state==="restoring";
+        if(!confirm(restore?"استعادة المشروع للسماح بالتعديل؟":"أرشفة المشروع وجعله للقراءة فقط مع الاحتفاظ بجميع ملفات Git؟"))return;
+        archive.disabled=true;
+        try{
+          await api("projects/"+project.id+"/"+(restore?"restore":"archive"),{method:"POST"});
+          toast(restore?"تمت استعادة المشروع":"تمت أرشفة المشروع");
+        }catch(err){toast("تعذر إكمال العملية: "+err.message);}
+        finally{await loadRepositories();}
+      });
+      box.append(button,archive,remove);root.append(box);
     }
   }catch(e){toast(e.message);}
 }
 async function openProject(item){
   repoState.id=item.id;repoState.title=item.title;repoState.folder="";
+  repoState.readOnly=item.deletion_state==="archived";
+  for(const id of ["save-file","delete-file","rename-file","upload-btn"]){$(id).disabled=repoState.readOnly;}
+  $("editor-revision").textContent=repoState.readOnly?"مؤرشف: القراءة والمعاينة فقط":"ملف نشط";
   $("project-explorer").classList.remove("hidden");
   $("explorer-title").textContent="ملفات "+item.title;
   $("folder-path").value="";

@@ -26,6 +26,26 @@ class FakeStorage:
         return [{key: val for key, val in p.items() if key not in ("user_id", "repo_name")}
                 for p in self.projects if p["user_id"] == user_id]
 
+    def mark_project_archive_transition(self, user_id, project_id, archive):
+        project = self.engineering_project(user_id, project_id)
+        if not project:
+            return None
+        state = project.get("deletion_state", "active")
+        allowed = ("active", "archiving") if archive else ("archived", "restoring")
+        if state not in allowed:
+            return None
+        project["deletion_state"] = "archiving" if archive else "restoring"
+        return project
+
+    def finish_project_archive_transition(self, user_id, project_id, archive):
+        project = self.engineering_project(user_id, project_id)
+        if not project:
+            return None
+        if project.get("deletion_state") != ("archiving" if archive else "restoring"):
+            return None
+        project["deletion_state"] = "archived" if archive else "active"
+        return project
+
     def engineering_project(self, user_id, project_id):
         return next((p for p in self.projects if p["user_id"] == user_id and p["id"] == project_id), None)
 
@@ -181,6 +201,29 @@ class ProjectAPIIntegrationTests(unittest.TestCase):
             self.assertEqual(rejected.status_code, 422)
             missing = self.client.get("/api/projects/100/file?path=src/main.py")
             self.assertEqual(missing.status_code, 404)
+
+    def test_archive_and_restore_are_owner_scoped_and_retryable(self):
+        self.storage.create_engineering_project(22, "Archived design", "electronics",
+                                                "engineering-archive-test")
+        with patch.object(GiteaClient, "set_archived", new_callable=AsyncMock) as remote:
+            remote.side_effect = GiteaError(503, "Gitea unavailable")
+            self.assertEqual(self.client.post("/api/projects/1/archive").status_code, 503)
+            self.assertEqual(self.storage.projects[0]["deletion_state"], "archiving")
+            remote.side_effect = None
+            remote.return_value = {"archived": True}
+            self.assertEqual(self.client.post("/api/projects/1/archive").status_code, 200)
+            self.assertEqual(self.storage.projects[0]["deletion_state"], "archived")
+            with patch.object(GiteaClient, "write_file", new_callable=AsyncMock) as writer:
+                request = {"path": "main.py", "content_base64": "cHJpbnQoMSk=", 
+                           "message": "Change source"}
+                self.assertEqual(self.client.post("/api/projects/1/file", json=request).status_code, 409)
+                writer.assert_not_awaited()
+            app.dependency_overrides[session_user] = lambda: 33
+            self.assertEqual(self.client.post("/api/projects/1/restore").status_code, 409)
+            app.dependency_overrides[session_user] = lambda: 22
+            remote.return_value = {"archived": False}
+            self.assertEqual(self.client.post("/api/projects/1/restore").status_code, 200)
+            self.assertEqual(self.storage.projects[0]["deletion_state"], "active")
 
     def test_delete_project_removes_remote_before_mapping(self):
         self.storage.create_engineering_project(22, "Circuit", "electronics",
