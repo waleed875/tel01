@@ -12,7 +12,7 @@ import re
 import secrets
 import time
 
-from engineering_calculators import OPERATIONS, calculate
+from engineering_calculators import (OPERATIONS, calculate, _number, _list_numbers,\n                                     MAX_SOURCE_CHARS, MAX_COEFFICIENTS)
 
 _KEY = secrets.token_bytes(32)
 _TTL = 10 * 60
@@ -35,6 +35,35 @@ def _validate(operation, inputs):
         raise ValueError("Operation inputs do not match the documented schema")
     if len(json.dumps(inputs, ensure_ascii=False, allow_nan=False)) > _MAX_JSON:
         raise ValueError("Proposal is too large")
+    # Independent input validation ONLY; never run the actual calculator here.
+    if operation == "math.polynomial":
+        _list_numbers(inputs["coefficients"], "coefficients", maximum=MAX_COEFFICIENTS)
+        _number(inputs["x"], "x")
+    elif operation == "math.quadratic":
+        for key in ("a", "b", "c"):
+            _number(inputs[key], key)
+        if float(inputs["a"]) == 0:
+            raise ValueError("Quadratic a cannot be zero")
+    elif operation == "electronics.ohm":
+        _number(inputs["voltage"], "voltage")
+        _number(inputs["resistance"], "resistance", positive=True)
+    elif operation == "electronics.resistors":
+        _list_numbers(inputs["resistances"], "resistances", positive=True)
+        if inputs["connection"] not in ("series", "parallel"):
+            raise ValueError("Unsupported resistor connection")
+    elif operation == "physics.force":
+        _number(inputs["mass"], "mass", nonnegative=True)
+        _number(inputs["acceleration"], "acceleration")
+    elif operation == "physics.kinetic_energy":
+        _number(inputs["mass"], "mass", nonnegative=True)
+        _number(inputs["velocity"], "velocity")
+    elif operation == "physics.velocity":
+        _number(inputs["distance"], "distance", nonnegative=True)
+        _number(inputs["time"], "time", positive=True)
+    elif operation == "software.analyze_python":
+        source = inputs["source"]
+        if not isinstance(source, str) or not 1 <= len(source) <= MAX_SOURCE_CHARS:
+            raise ValueError("Python source must be 1..16000 characters")
 
 
 def _sign(user_id, operation, inputs, expires):
