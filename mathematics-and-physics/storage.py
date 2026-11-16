@@ -1,5 +1,6 @@
 """PostgreSQL persistence for tutor profiles, exercises and conversations."""
 from datetime import datetime, timezone
+import hashlib
 import psycopg
 from psycopg.rows import dict_row
 
@@ -23,12 +24,24 @@ class Storage:
                 id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 user_id BIGINT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL)""")
             db.execute("""CREATE INDEX IF NOT EXISTS history_user_id_id_idx ON history(user_id, id DESC)""")
+            db.execute("""CREATE SEQUENCE IF NOT EXISTS web_user_ids START -1 INCREMENT -1 MINVALUE -9223372036854775808""")
+            db.execute("""CREATE TABLE IF NOT EXISTS web_sessions (token_hash TEXT PRIMARY KEY, user_id BIGINT UNIQUE NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())""")
             db.execute("""CREATE TABLE IF NOT EXISTS ai_usage (
                 user_id BIGINT NOT NULL, day DATE NOT NULL, count INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY(user_id, day))""")
 
     def _connect(self):
         return psycopg.connect(self.database_url, autocommit=False, row_factory=dict_row, connect_timeout=10)
+
+    def get_or_create_web_session(self, token: str) -> int:
+        """Keep random session tokens out of the database; store only SHA-256."""
+        digest = hashlib.sha256(token.encode("ascii")).hexdigest()
+        with self._connect() as db:
+            row = db.execute("""INSERT INTO web_sessions(token_hash,user_id)
+                VALUES(%s, nextval('web_user_ids'))
+                ON CONFLICT(token_hash) DO UPDATE SET token_hash=excluded.token_hash
+                RETURNING user_id""", (digest,)).fetchone()
+            return row["user_id"]
 
     def ensure(self, user_id: int):
         with self._connect() as db:
@@ -102,5 +115,5 @@ class Storage:
 
     def delete_user(self, user_id: int):
         with self._connect() as db:
-            for table, col in (("users", "id"), ("active_quiz", "user_id"), ("history", "user_id"), ("ai_usage", "user_id")):
+            for table, col in (("web_sessions", "user_id"), ("users", "id"), ("active_quiz", "user_id"), ("history", "user_id"), ("ai_usage", "user_id")):
                 db.execute(f"DELETE FROM {table} WHERE {col}=%s", (user_id,))
