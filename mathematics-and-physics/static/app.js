@@ -729,7 +729,7 @@ const engineeringExamples={
   "physics.force":{mass:3,acceleration:4},
   "physics.kinetic_energy":{mass:2,velocity:3},
   "physics.velocity":{distance:150,time:30},
-  "software.analyze_python":{source:"def add(x, y):\\n    return x + y\\n"},
+  "software.analyze_python":{source:"def add(x, y):\n    return x + y\n"},
 };
 function resetEngineeringInputs(){
   const op=$("engineering-operation").value;
