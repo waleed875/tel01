@@ -1,4 +1,4 @@
-@import url(""); /* No remote fonts or assets: works offline after deployment. */
+/* Uses system fonts and local assets only; no remote dependencies. */
 :root{color-scheme:dark;--bg:#080f1d;--sidebar:#0b1527;--surface:#101d32;--surface2:#15233b;--border:#243855;--text:#eaf3ff;--muted:#91a6c4;--blue:#307ef0;--cyan:#50c9ff;--green:#3cdaa9;--shadow:0 12px 35px #0002;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;font-synthesis:none}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
