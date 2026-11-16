@@ -667,12 +667,32 @@ async function checkAuth(){
     $("auth-gate").classList.remove("hidden");
   }
 }
+function clearPrivateWorkspace(){
+  appState.profile=null;
+  repoState.id=null;
+  repoState.sha=null;
+  repoState.path="";
+  repoState.title="";
+  repoState.folder="";
+  for(const id of ["messages","repo-list","project-files","project-search-results",
+                    "commit-list","dataset-list","training-jobs","curriculum-content",
+                    "projects-content","file-preview-content"]){
+    const node=$(id);
+    if(node)node.replaceChildren();
+  }
+  for(const id of ["file-editor","editor-filepath","rename-destination","question",
+                   "project-file-search","folder-path"]){
+    const node=$(id);if(node)node.value="";
+  }
+  $("project-explorer").classList.add("hidden");
+  $("project-search-results").classList.add("hidden");
+  $("legacy-claim-banner").classList.add("hidden");
+}
 async function logoutAuth(){
   try{await api("auth/logout",{method:"POST"});}
   catch(e){toast(e.message);return;}
   csrfToken="";
-  appState.profile=null;
-  $("messages").replaceChildren();
+  clearPrivateWorkspace();
   $("auth-gate").classList.remove("hidden");
   $("legacy-claim-banner").classList.add("hidden");
   $("auth-password").value="";
