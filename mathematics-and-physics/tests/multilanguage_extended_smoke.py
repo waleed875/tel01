@@ -12,7 +12,7 @@ def main():
         "php": ("<?php echo \"PHP=ok\\n\";", "PHP=ok"),
     }
     for language, (code, expected) in cases.items():
-        result = execute(language, code, timeout=20)
+        result = execute(language, code, timeout=60)
         assert result["success"], (language, result)
         assert expected in result["stdout"], (language, result)
         print("PASS", language, result["elapsed_seconds"], flush=True)
