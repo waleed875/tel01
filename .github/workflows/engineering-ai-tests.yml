@@ -96,3 +96,28 @@ jobs:
           python-version: '3.12'
       - name: Verify the complete backup restores into fresh disposable Docker resources
         run: PYTHONPATH=. python tests/backup_restore_live_smoke.py
+
+  coding-evaluation:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mathematics-and-physics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch explicit immutable-version Python sandbox runtime
+        run: docker pull python:3.12-alpine
+      - name: Self-check benchmark reference solutions inside locked-down Docker
+        run: python -m benchmarks.run_code_eval --mode reference --output benchmark-reference-report.json
+      - name: Verify baseline reference and safety refusal
+        run: |
+          python - <<'PY'
+          import json
+          report = json.load(open('benchmark-reference-report.json', encoding='utf-8'))
+          assert report['mode'] == 'reference'
+          assert report['solved_tasks'] == report['total_tasks'], report
+          assert report['total_cases'] >= 20
+          print('Reference harness passed:', report['passed_cases'], 'cases')
+          PY
