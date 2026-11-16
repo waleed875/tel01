@@ -21,6 +21,7 @@ from gitea_client import GiteaClient, GiteaError, MAX_FILE_BYTES, validate_path
 from auth import AuthStore, SESSION_SECONDS
 from vision import describe_image
 from site_builder import build_website
+from engine.vision_inference import LocalVisionClassifier
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="Engineering AI Lab", docs_url=None, redoc_url=None)
@@ -700,13 +701,30 @@ def delete_history(user: Annotated[int, Depends(session_user)],
     return {"ok": True}
 
 
+@lru_cache(maxsize=2)
+def get_local_vision_classifier(path: str, modified_ns: int):
+    return LocalVisionClassifier(path)
+
+
 @app.post("/api/vision/analyze")
 def analyze_uploaded_image(body: ImageAnalyzeRequest,
                            user: Annotated[int, Depends(session_user)]):
     """Bounded non-semantic analysis; no uploaded bytes stored in Gitea or DB."""
     try:
         payload = base64.b64decode(body.image_base64, validate=True)
-        return describe_image(payload)
+        result = describe_image(payload)
+        checkpoint = Path(os.getenv(
+            "VISION_CHECKPOINT", "/app/models/vision/vision_checkpoint.pt"))
+        result["classifier_available"] = checkpoint.is_file()
+        if checkpoint.is_file():
+            try:
+                classifier = get_local_vision_classifier(
+                    str(checkpoint), checkpoint.stat().st_mtime_ns)
+                result["experimental_classification"] = classifier.classify(payload)
+            except (RuntimeError, ValueError, OSError, KeyError) as exc:
+                result["classifier_error"] = (
+                    "تعذر قراءة النموذج البصري المحلي. راجع ملف الأوزان والتدريب.")
+        return result
     except (ValueError, binascii.Error) as exc:
         raise HTTPException(422, str(exc)) from exc
 
