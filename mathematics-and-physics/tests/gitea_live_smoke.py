@@ -51,7 +51,18 @@ async def main():
         assert (await client.read_file(name, "boards/data.bin"))["data"] == binary
         commits = await client.commits(name)
         assert len(commits) >= 3
-        await client.delete_file(name, source, sha2, "Remove source fixture")
+        # Rename in a single commit, without overwriting an existing destination.
+        renamed = "src/renamed.py"
+        await client.rename_file(name, source, renamed, sha=sha2,
+                                 message="Rename source fixture")
+        assert (await client.read_file(name, renamed))["data"] == b"print('changed')\n"
+        try:
+            await client.read_file(name, source)
+        except GiteaError as exc:
+            assert exc.status == 404
+        else:
+            raise AssertionError("Original path remained after atomic rename")
+        await client.delete_file(name, renamed, sha2, "Remove source fixture")
         print("PASS: repo visibility, Git commits, edit, stale-SHA conflict, binary and delete", flush=True)
     finally:
         if created:
