@@ -92,3 +92,42 @@ text is HTML-escaped in the generated scaffold. The new image API does not
 download remote content or call external services. Do not expose the training
 CLI or image endpoints to an untrusted public network without further resource
 isolation and security review.
+
+## First image-text fusion experiment
+
+The experimental module `engine/multimodal.py` attaches 16 learned image
+patch embeddings ahead of byte-token input to the existing local GPT decoder.
+Text tokens can attend causally to the image prefix. Both the visual patch
+projection and text transformer are **random-initialized and jointly
+trainable**. This is the first architectural step toward genuine joint
+image-and-text models; it is not yet ready for the chat UI.
+
+To assemble the initial aligned dataset, create
+`datasets/visual_qa/pairs.jsonl` containing JSON lines such as:
+
+```json
+{"image":"image-01.png","question":"What is shown?","answer":"A switch and a resistor."}
+{"image":"image-02.png","question":"Describe the circuit","answer":"A simple series circuit."}
+```
+
+Include **at least eight unique** owned/licensed PNG/JPEG files beside the
+manifest and make the answers accurate. The trainer refuses duplicate image
+files, rejects unsafe paths and keeps separate held-out examples.
+
+Train locally on the existing Docker trainer profile (without downloading any
+pretrained weights):
+
+```bash
+docker compose --profile train run --rm trainer python -m engine.train_multimodal \
+  --data /app/datasets/visual_qa --output /app/models/multimodal --steps 200
+```
+
+The worker writes `multimodal_checkpoint.pt` and a holdout-loss metric.
+The standard chat API **does not use this checkpoint yet**. Held-out
+next-byte loss is not proof that it understands diagrams, objects,
+screenshot layouts, or accurately generates website designs.
+
+Next stage: assess licensed image-caption datasets, improve tokenizer/context
+length, add a proper dataset manifest, held-out diagram QA tests and a gated
+multimodal inference endpoint, *then* connect to an owner-reviewed website
+code-generation workflow. See Issues #16, #17, #18.
