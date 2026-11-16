@@ -813,7 +813,10 @@ async function createWebDesign(event){
     const frame=$("web-design-preview");
     frame.srcdoc=inline; // sandbox has no allow-scripts or same-origin.
     $("web-design-source").value=html;
-    $("web-design-note").textContent=designedFiles.notice;
+    const quality=designedFiles.quality_checks;
+    $("web-design-note").textContent=designedFiles.notice+
+      (quality?" • فحوص البنية والأمان: "+quality.passed+"/"+quality.total+
+      " (لا تقيس جودة الذكاء الاصطناعي)":"");
     $("web-design-result").classList.remove("hidden");
   }catch(e){toast(e.message)}
   finally{button.disabled=false;}
