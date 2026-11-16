@@ -31,7 +31,7 @@ def validate_path(value: str, allow_root: bool = False) -> str:
             or any(ord(ch) < 32 for ch in value)
             or any(segment in ("", ".", "..") for segment in value.split("/"))):
         raise ValueError("Unsafe relative file path")
-    if any(segment.startswith(".git") for segment in value.split("/")):
+    if any(segment == ".git" for segment in value.split("/")):
         raise ValueError("Internal Git paths are not editable")
     return value
 
