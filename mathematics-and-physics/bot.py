@@ -119,7 +119,7 @@ async def ask_ai(message: Message, prompt: str, image_data_url: str | None = Non
     except Exception:
         store.release_quota(user_id)
         log.exception('AI request failed for user %s', user_id)
-        await message.answer('تعذر الاتصال بنموذج Ollama المحلي. تحقق من تشغيل الحاويات وتنزيل النموذج: docker compose logs ollama model-init tutor.')
+        await message.answer('لا توجد أوزان مدرّبة صالحة أو فشل الاستدلال المحلي. شغّل التدريب أولاً ثم أعد تشغيل البوت. راجع سجلات docker compose logs tutor.')
         return
     store.add_exchange(user_id, prompt if not image_data_url else f'{prompt} [صورة أرسلها الطالب]', response)
     await send_chunks(message, response)
@@ -332,7 +332,7 @@ async def delete_cb(call: CallbackQuery):
 
 @router.message(F.photo)
 async def on_photo(message: Message):
-    await message.answer('🖼️ النموذج المحلي المختار نصي فقط. اكتب نص المسألة لإعطائك شرحًا هندسيًا. يمكن إضافة نموذج بصري محلي لاحقًا.')
+    await message.answer('🖼️ نموذجنا التدريبي النصي لا يحلل الصور بعد. اكتب نص المسألة لإعطائك شرحًا هندسيًا. يمكن إضافة نموذج بصري محلي لاحقًا.')
 
 
 @router.message(F.text)
@@ -349,7 +349,7 @@ async def on_text(message: Message):
 
 @router.message()
 async def on_other(message: Message):
-    await message.answer('أرسل سؤالًا نصيًا أو صورة لمسألة، أو استخدم /quiz. الصوت والملفات غير مدعومة في هذه النسخة.')
+    await message.answer('أرسل سؤالًا نصيًا أو استخدم /quiz. الصوت والملفات غير مدعومة في هذه النسخة.')
 
 
 async def main():
@@ -361,8 +361,8 @@ async def main():
     if not database_url:
         raise SystemExit('DATABASE_URL is required for PostgreSQL.')
     store = Storage(database_url)
-    model = os.getenv('OLLAMA_MODEL', 'qwen2.5:3b')
-    teacher = Tutor(model=model, base_url=os.getenv('OLLAMA_URL', 'http://ollama:11434'))
+    checkpoint = os.getenv('MODEL_CHECKPOINT', '/app/models/checkpoint.pt')
+    teacher = Tutor(checkpoint_path=checkpoint)
     bot = Bot(token=token)
     dp = Dispatcher()
     dp.include_router(router)
@@ -380,7 +380,7 @@ async def main():
             BotCommand(command='new', description='محادثة جديدة'),
             BotCommand(command='help', description='المساعدة'),
         ])
-        log.info('Bot started using long polling. Model=%s; Local Ollama enabled=%s', model, teacher is not None)
+        log.info('Bot started using long polling; trained model checkpoint=%s', checkpoint)
         await dp.start_polling(bot, tasks_concurrency_limit=25)
     finally:
         await bot.session.close()
