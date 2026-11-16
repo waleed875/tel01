@@ -112,6 +112,18 @@
           <div class="panel"><form id="dataset-form"><div class="form-heading"><h3>إضافة مثال علمي جديد</h3><small>بيانات من إعدادك أو لديك حق استخدامها فقط</small></div><label>التخصص<select id="dataset-subject"><option value="math">الرياضيات</option><option value="physics">الفيزياء</option><option value="software">هندسة البرمجيات</option><option value="electronics">هندسة الإلكترونيات</option></select></label><label>السؤال<textarea id="dataset-question" minlength="8" maxlength="1800" rows="2" required placeholder="مثال: كيف نحسب التيار في مقاومة؟"></textarea></label><label>الإجابة العلمية المرجعية<textarea id="dataset-answer" minlength="8" maxlength="5000" rows="4" required placeholder="اشرح القانون والتطبيق والوحدات..."></textarea></label><div class="form-actions"><button type="submit" class="primary-btn" id="save-example">حفظ كمسودة</button><small>لا تستخدم المعلومات الخاصة أو غير المرخصة.</small></div></form></div>
           <div class="section-header space-top"><div><h2>أمثلة التدريب المحفوظة <span id="dataset-count" class="count">0</span> <small id="dataset-stats" class="dataset-stats">0 معتمد • 0 مسودة</small></h2></div></div>
           <div id="dataset-list" class="dataset-list"></div>
+          <div class="section-header space-top"><div><span class="overline">TRAINING CONTROL</span><h2>تشغيل تدريب جديد</h2></div></div>
+          <div class="panel train-card">
+            <p>يستخدم التدريب فقط الأمثلة التي اعتمدتها أنت. تحتاج على الأقل إلى 12 مثالًا معتمدًا، ويحفظ النموذج إصدارًا جديدًا دون استبدال إصدار آخر.</p>
+            <form id="training-form" class="field-grid">
+              <label>خطوات التدريب <input id="training-steps" type="number" min="50" max="300" step="50" value="100" required></label>
+              <label>البذرة العشوائية <input id="training-seed" type="number" min="0" max="2147483647" step="1" value="42" required></label>
+              <button id="start-training" type="submit" class="primary-btn">ابدأ التدريب</button>
+            </form>
+            <p class="help-text">التدريب قد يحتاج موارد معالج وذاكرة مرتفعة؛ لا تفتح هذه الوظيفة على الإنترنت دون تسجيل دخول وصلاحيات.</p>
+          </div>
+          <div class="section-header space-top"><div><span class="overline">TRAINING RUNS</span><h2>سجل التدريب ومقاييسه</h2></div><button id="refresh-training" type="button" class="inline-link">تحديث الحالة ↻</button></div>
+          <div id="training-jobs" class="dataset-list"></div>
         </section>
 
         <section class="view hidden" id="view-progress">
