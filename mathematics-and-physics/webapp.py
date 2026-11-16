@@ -22,6 +22,7 @@ from auth import AuthStore, SESSION_SECONDS
 from vision import describe_image
 from site_builder import build_website
 from engine.vision_inference import LocalVisionClassifier
+from engine.evaluate_web import inspect_frontend
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="Engineering AI Lab", docs_url=None, redoc_url=None)
@@ -734,7 +735,11 @@ def scaffold_web_design(body: WebDesignRequest,
                         user: Annotated[int, Depends(session_user)]):
     """Previewable, deterministic design; no Gitea commits or AI claims."""
     try:
-        return build_website(body.title, body.description, body.style, body.sections)
+        result = build_website(body.title, body.description, body.style, body.sections)
+        files = {item["path"]: item["content"] for item in result["files"]}
+        result["quality_checks"] = inspect_frontend(
+            files["index.html"], files["style.css"])
+        return result
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
