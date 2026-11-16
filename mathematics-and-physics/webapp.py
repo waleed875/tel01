@@ -22,6 +22,7 @@ from auth import AuthStore, SESSION_SECONDS
 from vision import describe_image
 from site_builder import build_website
 from engine.vision_inference import LocalVisionClassifier
+from engine.multimodal_inference import ExperimentalVisualQA
 from engine.evaluate_web import inspect_frontend
 
 BASE = Path(__file__).resolve().parent
@@ -71,6 +72,11 @@ class Settings(BaseModel):
 
 class ImageAnalyzeRequest(BaseModel):
     image_base64: str = Field(min_length=12, max_length=2800000)
+
+
+class VisionQuestionRequest(BaseModel):
+    image_base64: str = Field(min_length=12, max_length=2800000)
+    question: str = Field(min_length=1, max_length=500)
 
 
 class WebDesignRequest(BaseModel):
@@ -728,6 +734,36 @@ def analyze_uploaded_image(body: ImageAnalyzeRequest,
         return result
     except (ValueError, binascii.Error) as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+@lru_cache(maxsize=2)
+def get_visual_qa_model(path: str, modified_ns: int):
+    return ExperimentalVisualQA(path)
+
+
+@app.post("/api/vision/ask")
+async def ask_about_uploaded_image(body: VisionQuestionRequest,
+                                   user: Annotated[int, Depends(session_user)]):
+    """Untrusted experiment only: accepts bytes but never writes projects."""
+    checkpoint = Path(os.getenv(
+        "MULTIMODAL_CHECKPOINT",
+        "/app/models/multimodal/multimodal_checkpoint.pt"))
+    if not checkpoint.is_file():
+        raise HTTPException(503, "النموذج البصري-اللغوي غير مدرب بعد. درّبه على أمثلة صورة وسؤال وإجابة.")
+    try:
+        data = base64.b64decode(body.image_base64, validate=True)
+        describe_image(data)
+        model_instance = get_visual_qa_model(
+            str(checkpoint), checkpoint.stat().st_mtime_ns)
+        return await asyncio.wait_for(
+            asyncio.to_thread(model_instance.ask, data, body.question),
+            timeout=90)
+    except (ValueError, binascii.Error) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except (OSError, RuntimeError, KeyError):
+        raise HTTPException(503, "تعذر تحميل أوزان النموذج البصري المحلي. تحقق من توافق الإصدار.")
+    except TimeoutError:
+        raise HTTPException(504, "انتهت مهلة توليد الإجابة البصرية التجريبية.")
 
 
 @app.post("/api/design/scaffold")
