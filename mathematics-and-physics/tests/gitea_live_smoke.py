@@ -49,6 +49,8 @@ async def main():
         await client.write_file(name, "boards/data.bin", binary, sha=None,
                                 message="Upload binary fixture")
         assert (await client.read_file(name, "boards/data.bin"))["data"] == binary
+        search_result = await client.search_paths(name, "demo")
+        assert any(row["path"] == source for row in search_result["matches"]), "Nested search failed"
         commits = await client.commits(name)
         assert len(commits) >= 3
         # Rename in a single commit, without overwriting an existing destination.
