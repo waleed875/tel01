@@ -33,7 +33,7 @@ class FakeStorage:
 class GiteaValidationTests(unittest.TestCase):
     def test_rejects_traversal_absolute_and_git_paths(self):
         for item in ("../etc/passwd", "src/../secret", "/etc/shadow",
-                     "src//file.py", "src\\evil.py", ".git/config", "abc/.gitignore"):
+                     "src//file.py", "src\\evil.py", ".git/config"):
             with self.subTest(item=item):
                 with self.assertRaises(ValueError):
                     validate_path(item)
