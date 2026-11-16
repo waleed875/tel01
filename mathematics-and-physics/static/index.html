@@ -201,6 +201,13 @@
           </div>
           <div class="section-header space-top"><div><span class="overline">TRAINING RUNS</span><h2>سجل التدريب ومقاييسه</h2></div><button id="refresh-training" type="button" class="inline-link">تحديث الحالة ↻</button></div>
           <div id="training-jobs" class="dataset-list"></div>
+          <div class="panel training-cleanup-panel">
+            <h3>حذف بيانات التدريب وملفات النماذج</h3>
+            <p>يحذف هذا الإجراء جميع أمثلة التدريب، وسجلات تجاربك، وملفات بيانات التجارب والأوزان الناتجة عنها في Docker. لا يمكن تنفيذ الحذف أثناء تدريب جارٍ، وقد يستغرق التنظيف وقتًا.</p>
+            <button type="button" id="request-training-cleanup" class="danger-btn">طلب حذف جميع بيانات التدريب</button>
+            <p id="training-cleanup-state" class="help-text">لم تُطلب عملية تنظيف بعد.</p>
+          </div>
+
         </section>
 
         <section class="view hidden" id="view-progress">
