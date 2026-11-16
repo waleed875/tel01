@@ -14,6 +14,7 @@ from site_builder import build_website
 from engine.vision import PatchVisionEncoder
 from engine.train_vision import train_vision
 from engine.vision_inference import LocalVisionClassifier
+from engine.evaluate_web import inspect_frontend
 from webapp import app, session_user
 
 
@@ -70,6 +71,8 @@ class WebsiteScaffoldTests(unittest.TestCase):
         self.assertIn('aria-label="التنقل الرئيسي"', html)
         self.assertIn('href="#main"', html)
         self.assertIn("@media(max-width:650px)", css)
+        audit = inspect_frontend(html, css)
+        self.assertTrue(audit["all_pass"], audit["checks"])
         self.assertTrue(scaffold["requires_approval"])
         self.assertEqual(scaffold["mode"], "deterministic-scaffold")
 
@@ -89,6 +92,7 @@ class WebsiteScaffoldTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(len(response.json()["files"]), 2)
             self.assertTrue(response.json()["requires_approval"])
+            self.assertTrue(response.json()["quality_checks"]["all_pass"])
         finally:
             app.dependency_overrides.clear()
 
