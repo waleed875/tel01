@@ -3,6 +3,7 @@ import asyncio
 import os
 import secrets
 from pathlib import Path
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Request, Response, Depends
@@ -156,10 +157,56 @@ def catalog():
             "levels": LEVEL_NAMES}
 
 
+@lru_cache(maxsize=4)
+def cached_model(path: str):
+    return Tutor(checkpoint_path=path)
+
+
+def safe_checkpoint(job: dict) -> Path:
+    """Check that an owned, completed job points to our worker-owned model directory."""
+    folder = Path(os.getenv("MODEL_ROOT", "/app/models")).resolve()
+    expected = (folder / f"run-{job['id']}" / "checkpoint.pt").resolve()
+    if Path(job["checkpoint_path"]).resolve() != expected or not expected.is_file():
+        raise HTTPException(409, "ملف الأوزان لهذا الإصدار غير موجود على الخادم")
+    return expected
+
+
+@app.post("/api/training/jobs/{job_id}/activate")
+def activate_model(job_id: int, user: Annotated[int, Depends(session_user)],
+                   database: Annotated[Storage, Depends(db)]):
+    job = database.training_job(user, job_id)
+    if not job or job["state"] != "completed":
+        raise HTTPException(409, "لا يمكن تفعيل إصدار غير مكتمل أو غير تابع لجلساتك")
+    # Fetch private stored path only for a job we own.
+    with database._connect() as connection:
+        full = connection.execute(
+            "SELECT id,checkpoint_path FROM training_jobs WHERE id=%s AND user_id=%s",
+            (job_id, user),
+        ).fetchone()
+    if not full or not full["checkpoint_path"]:
+        raise HTTPException(409, "ملف الإصدار غير جاهز")
+    safe_checkpoint(full)
+    active = database.activate_training_job(user, job_id)
+    if not active:
+        raise HTTPException(409, "تعذر تفعيل الإصدار")
+    return {"active_job_id": active["id"], "heldout_loss": active["heldout_loss"],
+            "notice": "التفعيل لا يعني اعتماد جودة الإجابات الهندسية"}
+
+
 @app.get("/api/model/status")
-def model_status():
+def model_status(user: Annotated[int, Depends(session_user)],
+                 database: Annotated[Storage, Depends(db)]):
     path = Path(os.getenv("MODEL_CHECKPOINT", "/app/models/checkpoint.pt"))
+    active = database.active_training_job(user)
+    if active:
+        try:
+            safe_checkpoint(active)
+            path = Path(active["checkpoint_path"])
+        except HTTPException:
+            active = None
     return {
+        "active_job_id": active["id"] if active else None,
+        "heldout_loss": active["heldout_loss"] if active else None,
         "checkpoint_available": path.is_file(),
         "checkpoint_size_bytes": path.stat().st_size if path.is_file() else 0,
         "backend": "custom-transformer",
@@ -272,6 +319,8 @@ async def chat(body: ChatRequest, user: Annotated[int, Depends(session_user)],
                database: Annotated[Storage, Depends(db)]):
     if model is None:
         raise HTTPException(503, "محرك الذكاء الاصطناعي غير جاهز")
+    active = database.active_training_job(user)
+    serving_model = cached_model(str(safe_checkpoint(active))) if active else model
     question = body.question.strip()
     if not question:
         raise HTTPException(422, "الرجاء كتابة السؤال")
@@ -281,7 +330,7 @@ async def chat(body: ChatRequest, user: Annotated[int, Depends(session_user)],
     history = database.recent_history(user, 6)
     try:
         answer = await asyncio.wait_for(
-            model.ask(level=profile["level"], subject=profile["subject"],
+            serving_model.ask(level=profile["level"], subject=profile["subject"],
                       question=question, history=history), timeout=120)
     except (FileNotFoundError, RuntimeError, ValueError):
         raise HTTPException(503, "لم يتم تدريب النموذج بعد، أو تعذر تحميل ملف الأوزان.")
