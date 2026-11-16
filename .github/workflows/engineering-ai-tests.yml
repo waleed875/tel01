@@ -163,4 +163,8 @@ jobs:
       - name: Verify no disposable run containers remain
         if: always()
         run: |
-          docker ps -a --format '{{.Names}}' | grep '^lab-code-' && exit 1 || true
+          if docker ps -a --format '{{.Names}}' | grep -q '^lab-code-'; then
+            echo "ERROR: disposable code containers were not cleaned up"
+            docker ps -a --format '{{.Names}}' | grep '^lab-code-'
+            exit 1
+          fi
