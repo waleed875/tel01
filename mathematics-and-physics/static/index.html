@@ -111,6 +111,14 @@
               <button type="button" id="browse-folder" class="ghost-btn">استعراض</button>
               <button type="button" id="show-commits" class="ghost-btn">سجل Git</button>
             </div>
+            <div class="explorer-search">
+              <label for="project-file-search">بحث في أسماء الملفات والمجلدات الفرعية</label>
+              <div class="explorer-search-fields">
+                <input id="project-file-search" type="search" minlength="2" maxlength="100" placeholder="مثال: circuit أو main.py">
+                <button type="button" id="search-project-files" class="ghost-btn">بحث</button>
+              </div>
+              <div id="project-search-results" class="file-list hidden" aria-live="polite"></div>
+            </div>
             <div id="project-files" class="file-list"></div>
             <div id="commit-list" class="commit-list hidden"></div>
             <div class="editor-panel">
