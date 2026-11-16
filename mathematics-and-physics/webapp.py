@@ -177,12 +177,7 @@ def activate_model(job_id: int, user: Annotated[int, Depends(session_user)],
     job = database.training_job(user, job_id)
     if not job or job["state"] != "completed":
         raise HTTPException(409, "لا يمكن تفعيل إصدار غير مكتمل أو غير تابع لجلساتك")
-    # Fetch private stored path only for a job we own.
-    with database._connect() as connection:
-        full = connection.execute(
-            "SELECT id,checkpoint_path FROM training_jobs WHERE id=%s AND user_id=%s",
-            (job_id, user),
-        ).fetchone()
+    full = database.completed_training_job_path(user, job_id)
     if not full or not full["checkpoint_path"]:
         raise HTTPException(409, "ملف الإصدار غير جاهز")
     safe_checkpoint(full)
