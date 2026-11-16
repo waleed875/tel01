@@ -108,6 +108,67 @@ class PostgresTests(unittest.TestCase):
             self.db.finish_engineering_project_deletion(self.uid, project_id)
 
 
+    def test_training_artifact_cleanup_queue_and_database_removal(self):
+        for n in range(12):
+            item = self.db.add_training_example(
+                self.uid, "math", f"Validated calculation number {n} in algebra",
+                "Step-by-step solution with units and clearly verified algebra.")
+            self.db.review_training_example(self.uid, item["id"], "approved")
+        job = self.db.create_training_job(self.uid, steps=50, seed=42)
+        with self.assertRaises(ValueError):
+            self.db.queue_training_cleanup(self.uid)
+        claimed = self.db.claim_training_job()
+        self.assertEqual(claimed["id"], job["id"])
+        with self.assertRaises(ValueError):
+            self.db.queue_training_cleanup(self.uid)
+        self.db.finish_training_job(job["id"], False, error="test-only stop")
+        cleanup = self.db.queue_training_cleanup(self.uid)
+        self.assertEqual(cleanup["state"], "queued")
+        self.assertEqual(self.db.queue_training_cleanup(self.uid)["id"], cleanup["id"])
+        with self.assertRaises(ValueError):
+            self.db.create_training_job(self.uid, steps=50, seed=42)
+        work = self.db.claim_training_cleanup()
+        self.assertEqual(work["id"], cleanup["id"])
+        self.assertEqual(work["job_ids"], [job["id"]])
+        self.db.finish_training_cleanup(cleanup["id"])
+        self.assertEqual(self.db.cleanup_status(self.uid)["state"], "completed")
+        self.assertEqual(self.db.list_training_jobs(self.uid), [])
+        self.assertEqual(self.db.training_examples(self.uid), [])
+
+
+    def test_cleanup_removes_actual_run_directory_and_corresponding_rows(self):
+        import tempfile
+        from pathlib import Path
+        from engine.worker import remove_owned_model_runs
+        item = self.db.add_training_example(
+            self.uid, "physics", "Newton's second law concept in mechanics?",
+            "Force equals mass multiplied by acceleration.")
+        for n in range(11):
+            another = self.db.add_training_example(
+                self.uid, "physics", f"Validated physics problem number {n}",
+                "A complete solution with verified SI units and derivation.")
+            self.db.review_training_example(self.uid, another["id"], "approved")
+        self.db.review_training_example(self.uid, item["id"], "approved")
+        job = self.db.create_training_job(self.uid, steps=50, seed=123)
+        self.db.claim_training_job()
+        self.db.finish_training_job(job["id"], True, "/app/models/run-test/checkpoint.pt")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run = root / f"run-{job['id']}"
+            run.mkdir()
+            (run / "checkpoint.pt").write_bytes(b"private checkpoint")
+            (run / "train.txt").write_text("private training source")
+            cleanup = self.db.queue_training_cleanup(self.uid)
+            claimed = self.db.claim_training_cleanup()
+            self.assertEqual(claimed["id"], cleanup["id"])
+            remove_owned_model_runs(claimed["job_ids"], root)
+            self.assertFalse(run.exists())
+            self.db.finish_training_cleanup(cleanup["id"])
+            self.assertEqual(self.db.cleanup_status(self.uid)["state"], "completed")
+            self.assertFalse(self.db.list_training_jobs(self.uid))
+            self.assertFalse(self.db.training_examples(self.uid))
+
+
     def test_training_requires_approved_examples(self):
         for n in range(12):
             self.db.add_training_example(self.uid, "physics",

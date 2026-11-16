@@ -61,6 +61,19 @@ class Storage:
                 user_id BIGINT PRIMARY KEY,
                 job_id BIGINT NOT NULL REFERENCES training_jobs(id)
             )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS training_artifact_cleanup (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                state TEXT NOT NULL DEFAULT 'queued'
+                    CHECK(state IN ('queued','running','completed','failed')),
+                job_ids JSONB NOT NULL,
+                error TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                started_at TIMESTAMPTZ,
+                finished_at TIMESTAMPTZ
+            )""")
+            db.execute("""CREATE INDEX IF NOT EXISTS training_cleanup_user_idx
+                          ON training_artifact_cleanup(user_id,id DESC)""")
             db.execute("""CREATE INDEX IF NOT EXISTS training_jobs_user_idx ON training_jobs(user_id,id DESC)""")
             db.execute("""CREATE TABLE IF NOT EXISTS training_metrics (
                 job_id BIGINT NOT NULL REFERENCES training_jobs(id) ON DELETE CASCADE,
@@ -247,6 +260,13 @@ class Storage:
             raise ValueError("Training configuration outside safe limits")
         with self._connect() as db:
             db.execute("SELECT pg_advisory_xact_lock(%s)", (user_id,))
+            cleanup_pending = db.execute(
+                """SELECT 1 FROM training_artifact_cleanup
+                   WHERE user_id=%s AND state IN ('queued','running') LIMIT 1""",
+                (user_id,),
+            ).fetchone()
+            if cleanup_pending:
+                raise ValueError("Training artifacts are pending deletion")
             pending = db.execute(
                 """SELECT COUNT(*) AS n FROM training_jobs
                    WHERE user_id=%s AND state IN ('queued','running')""",
@@ -347,6 +367,99 @@ class Storage:
                 """UPDATE training_jobs SET state='failed',
                    error='Training worker restarted; retry with a new job',
                    finished_at=NOW() WHERE state='running'"""
+            )
+
+    def queue_training_cleanup(self, user_id: int):
+        """Snapshot owned job IDs; reject cleanup while training is queued/running."""
+        import json
+        with self._connect() as db:
+            db.execute("SELECT pg_advisory_xact_lock(%s)", (user_id,))
+            busy = db.execute(
+                """SELECT 1 FROM training_jobs WHERE user_id=%s AND
+                   state IN ('queued','running') LIMIT 1""",
+                (user_id,),
+            ).fetchone()
+            if busy:
+                raise ValueError("Finish or stop running training first")
+            existing = db.execute(
+                """SELECT id,state FROM training_artifact_cleanup
+                   WHERE user_id=%s AND state IN ('queued','running')
+                   LIMIT 1""",
+                (user_id,),
+            ).fetchone()
+            if existing:
+                return existing
+            ids = db.execute(
+                "SELECT id FROM training_jobs WHERE user_id=%s ORDER BY id",
+                (user_id,),
+            ).fetchall()
+            row = db.execute(
+                """INSERT INTO training_artifact_cleanup(user_id,job_ids)
+                   VALUES(%s,%s::jsonb) RETURNING id,state""",
+                (user_id, json.dumps([int(item["id"]) for item in ids])),
+            ).fetchone()
+            return row
+
+    def cleanup_status(self, user_id: int):
+        with self._connect() as db:
+            return db.execute(
+                """SELECT id,state,error,created_at,started_at,finished_at
+                   FROM training_artifact_cleanup WHERE user_id=%s
+                   ORDER BY id DESC LIMIT 1""",
+                (user_id,),
+            ).fetchone()
+
+    def requeue_interrupted_cleanup(self):
+        with self._connect() as db:
+            db.execute(
+                """UPDATE training_artifact_cleanup SET state='queued',started_at=NULL
+                   WHERE state='running'"""
+            )
+
+    def claim_training_cleanup(self):
+        with self._connect() as db:
+            row = db.execute(
+                """SELECT id FROM training_artifact_cleanup WHERE state='queued'
+                   ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1"""
+            ).fetchone()
+            if not row:
+                return None
+            db.execute(
+                """UPDATE training_artifact_cleanup SET state='running',
+                   started_at=NOW(),error=NULL WHERE id=%s""", (row["id"],),
+            )
+            return db.execute(
+                """SELECT id,user_id,job_ids FROM training_artifact_cleanup WHERE id=%s""",
+                (row["id"],),
+            ).fetchone()
+
+    def finish_training_cleanup(self, cleanup_id: int):
+        """Commit removal of training DB records only after filesystem cleanup."""
+        with self._connect() as db:
+            row = db.execute(
+                """SELECT user_id FROM training_artifact_cleanup
+                   WHERE id=%s AND state='running' FOR UPDATE""",
+                (cleanup_id,),
+            ).fetchone()
+            if not row:
+                raise ValueError("Cleanup job is not running")
+            user_id = row["user_id"]
+            db.execute("DELETE FROM active_models WHERE user_id=%s", (user_id,))
+            db.execute("""DELETE FROM training_metrics WHERE job_id IN
+                          (SELECT id FROM training_jobs WHERE user_id=%s)""", (user_id,))
+            db.execute("DELETE FROM training_jobs WHERE user_id=%s", (user_id,))
+            db.execute("DELETE FROM training_examples WHERE user_id=%s", (user_id,))
+            db.execute(
+                """UPDATE training_artifact_cleanup SET state='completed',
+                   finished_at=NOW(),error=NULL WHERE id=%s""", (cleanup_id,),
+            )
+
+    def fail_training_cleanup(self, cleanup_id: int, error: str):
+        with self._connect() as db:
+            db.execute(
+                """UPDATE training_artifact_cleanup SET state='failed',
+                   error=%s,finished_at=NOW() WHERE id=%s AND state='running'""",
+                (error[:500], cleanup_id),
             )
 
     def claim_training_job(self):

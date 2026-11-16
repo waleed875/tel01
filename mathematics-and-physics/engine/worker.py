@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import random
+import shutil
 import subprocess
 import sys
 import time
@@ -17,6 +18,24 @@ from .eval_holdout import evaluate_heldout
 
 MODEL_ROOT = Path(os.environ.get("MODEL_ROOT", "/app/models"))
 POLL_SECONDS = 3
+
+
+def remove_owned_model_runs(job_ids: list[int], root: Path = MODEL_ROOT):
+    """Never follow symlinks or accept arbitrary paths from untrusted records."""
+    if not isinstance(job_ids, list):
+        raise ValueError("Invalid cleanup job list")
+    root = root.resolve(strict=True)
+    for raw in job_ids:
+        if type(raw) is not int or raw < 1 or raw > 9223372036854775807:
+            raise ValueError("Invalid cleanup job identifier")
+        target = root / f"run-{raw}"
+        if target.is_symlink():
+            raise ValueError("Refusing to follow model-directory symlink")
+        if not target.exists():
+            continue
+        if target.resolve(strict=True).parent != root or not target.is_dir():
+            raise ValueError("Model path escaped trusted root")
+        shutil.rmtree(target)
 
 
 def split_examples(examples: list[dict], seed: int):
@@ -130,8 +149,19 @@ def main():
     MODEL_ROOT.mkdir(parents=True, exist_ok=True)
     storage = Storage(database)
     storage.fail_interrupted_training_jobs()
+    storage.requeue_interrupted_cleanup()
     print("Training worker started; polling approved job snapshots", flush=True)
     while True:
+        cleanup = storage.claim_training_cleanup()
+        if cleanup:
+            try:
+                remove_owned_model_runs(cleanup["job_ids"])
+                storage.finish_training_cleanup(cleanup["id"])
+                print(f"Artifact cleanup {cleanup['id']}: completed", flush=True)
+            except Exception as exc:
+                storage.fail_training_cleanup(cleanup["id"], str(exc))
+                print(f"Artifact cleanup {cleanup['id']}: failed: {exc}", flush=True)
+            continue
         job = storage.claim_training_job()
         if job is None:
             time.sleep(POLL_SECONDS)

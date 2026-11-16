@@ -46,7 +46,7 @@ function go(view){
   $("hero").classList.toggle("hidden",view!=="home");
   if(view==="progress")loadProgress();
   if(view==="projects"){projectStatus();loadRepositories();}
-  if(view==="datasets"){loadExamples();renderTrainingJobs();}
+  if(view==="datasets"){loadExamples();renderTrainingJobs();loadCleanupStatus();}
   if(view==="chat")loadHistory();
   window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -606,6 +606,33 @@ async function renderTrainingJobs(){
     }
   }catch(err){root.replaceChildren(mk("div","empty-state",err.message));}
 }
+const CLEANUP_STATES={queued:"في انتظار عامل التنظيف",running:"جارٍ حذف ملفات التدريب",
+  completed:"اكتمل تنظيف البيانات والملفات",failed:"فشل الحذف؛ يمكن إعادة الطلب"};
+async function loadCleanupStatus(){
+  try{
+    const data=await api("training/cleanup");
+    const job=data.cleanup;
+    $("training-cleanup-state").textContent=job?
+      "طلب #"+job.id+" • "+(CLEANUP_STATES[job.state]||job.state)+
+      (job.error?" • "+job.error:"") :
+      "لم تُطلب عملية تنظيف بعد.";
+    if(job?.state==="completed"){
+      await loadExamples();
+      await loadProfile();
+    }
+  }catch(e){toast(e.message);}
+}
+async function requestTrainingCleanup(){
+  if(!confirm("سيتم حذف جميع أمثلة التدريب والمعلومات المرتبطة بها وملفات النماذج الناتجة عن تجاربك. العملية لا يمكن التراجع عنها. هل تريد المتابعة؟"))return;
+  if(!confirm("تأكيد نهائي: هل تريد حذف كافة بيانات التدريب وملفات الأوزان المملوكة لحسابك؟"))return;
+  const button=$("request-training-cleanup");button.disabled=true;
+  try{
+    const job=await api("training/cleanup",{method:"POST"});
+    toast("تم تسجيل طلب التنظيف #"+job.id+"، وسيعالجه عامل التدريب");
+    await loadCleanupStatus();
+  }catch(e){toast("تعذّر طلب حذف بيانات التدريب: "+e.message);}
+  finally{button.disabled=false;}
+}
 async function startTraining(e){
   e.preventDefault();
   const btn=$("start-training");btn.disabled=true;
@@ -761,7 +788,8 @@ function initBindings(){
   $("site-search").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();findLocal(e.target.value);}});
   document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();$("site-search").focus();}});
   $("training-form").addEventListener("submit",startTraining);
-  $("refresh-training").addEventListener("click",renderTrainingJobs);
+  $("refresh-training").addEventListener("click",()=>{renderTrainingJobs();loadCleanupStatus();});
+  $("request-training-cleanup").addEventListener("click",requestTrainingCleanup);
   $("dataset-form").addEventListener("submit",async e=>{
     e.preventDefault();
     const btn=$("save-example");

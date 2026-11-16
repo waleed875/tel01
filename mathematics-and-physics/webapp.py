@@ -581,6 +581,21 @@ def create_training_job(body: StartTrainingRequest, user: Annotated[int, Depends
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+@app.post("/api/training/cleanup", status_code=202)
+def queue_training_cleanup(user: Annotated[int, Depends(session_user)],
+                           database: Annotated[Storage, Depends(db)]):
+    try:
+        return database.queue_training_cleanup(user)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/training/cleanup")
+def training_cleanup_status(user: Annotated[int, Depends(session_user)],
+                            database: Annotated[Storage, Depends(db)]):
+    return {"cleanup": database.cleanup_status(user)}
+
+
 @app.get("/api/training/jobs")
 def training_jobs(user: Annotated[int, Depends(session_user)],
                   database: Annotated[Storage, Depends(db)]):
