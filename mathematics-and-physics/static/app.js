@@ -127,7 +127,7 @@ async function loadModel(){
     const ready=Boolean(m.checkpoint_available);
     $("rail-model").textContent=ready?"أوزان متاحة • تجريبية":"لا توجد أوزان مدرّبة";
     $("model-state-label").textContent=ready?"الأوزان جاهزة للاستدلال (غير موثوقة)":"لم يتم تدريب النموذج بعد";
-    $("checkpoint-badge").textContent=ready?"أوزان تجريبية متاحة":"التدريب مطلوب";
+    $("checkpoint-badge").textContent=m.active_job_id?"إصدار نشط #"+m.active_job_id:(ready?"أوزان تجريبية متاحة":"التدريب مطلوب");
     $("model-dot").classList.toggle("ready",ready);
   }catch(e){$("rail-model").textContent="حالة النموذج غير متاحة";toast(e.message);}
 }
@@ -243,6 +243,22 @@ async function renderTrainingJobs(){
         "  •  أمثلة التحقق: "+job.validation_count+"\n"+
         "البذرة: "+job.seed+"  •  بصمة البيانات: "+job.snapshot_sha256.slice(0,12));
       el.append(title,details);
+      if(job.heldout_loss!==null&&job.heldout_loss!==undefined){
+        el.append(mk("p","metric-text","خسارة بيانات التقييم المحجوزة: "+Number(job.heldout_loss).toFixed(4)+
+           " (مقياس لغوي فقط، ليس نسبة صحة الإجابات)"));
+      }
+      if(job.state==="completed"){
+        const activate=mk("button","ghost-btn","تفعيل هذا الإصدار في المحادثة");
+        activate.type="button";
+        activate.addEventListener("click",async()=>{
+          try{
+            await api("training/jobs/"+job.id+"/activate",{method:"POST"});
+            toast("تم اختيار الإصدار #"+job.id+" للمحادثة. لا تعتمد على مخرجاته علميًا.");
+            await loadModel();
+          }catch(err){toast(err.message)}
+        });
+        el.append(activate);
+      }
       if(job.train_loss!==null&&job.train_loss!==undefined){
         el.append(mk("p","metric-text","خسارة التدريب: "+Number(job.train_loss).toFixed(4)+
           "   •   خسارة التحقق: "+Number(job.validation_loss).toFixed(4)));
