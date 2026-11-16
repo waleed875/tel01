@@ -291,9 +291,9 @@ def safe_preview_type(path: str, data: bytes) -> str:
     suffix = Path(path).suffix.lower()
     if suffix == ".pdf" and data.startswith(b"%PDF-"):
         return "application/pdf"
-    if suffix == ".png" and data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+    if suffix == ".png" and data.startswith(b"\x89PNG\r\n\x1a\n"):
         return "image/png"
-    if suffix in (".jpg", ".jpeg") and data.startswith(b"\\xff\\xd8\\xff"):
+    if suffix in (".jpg", ".jpeg") and data.startswith(b"\xff\xd8\xff"):
         return "image/jpeg"
     if suffix == ".gif" and data.startswith((b"GIF87a", b"GIF89a")):
         return "image/gif"
