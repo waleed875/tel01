@@ -76,6 +76,11 @@ class TrainingReviewRequest(BaseModel):
     approved: bool
 
 
+class StartTrainingRequest(BaseModel):
+    steps: int = Field(ge=50, le=300)
+    seed: int = Field(ge=0, le=2147483647)
+
+
 class TrainingExampleRequest(BaseModel):
     subject: str
     question: str = Field(min_length=8, max_length=1800)
@@ -160,6 +165,30 @@ def model_status():
         "backend": "custom-transformer",
         "training_note": "وجود أوزان لا يعني أن النموذج مؤهل أو دقيق؛ البيانات الحالية تجريبية.",
     }
+
+
+@app.post("/api/training/jobs", status_code=202)
+def create_training_job(body: StartTrainingRequest, user: Annotated[int, Depends(session_user)],
+                        database: Annotated[Storage, Depends(db)]):
+    try:
+        return database.create_training_job(user, body.steps, body.seed)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/training/jobs")
+def training_jobs(user: Annotated[int, Depends(session_user)],
+                  database: Annotated[Storage, Depends(db)]):
+    return {"jobs": database.list_training_jobs(user)}
+
+
+@app.get("/api/training/jobs/{job_id}")
+def training_job(job_id: int, user: Annotated[int, Depends(session_user)],
+                 database: Annotated[Storage, Depends(db)]):
+    job = database.training_job(user, job_id)
+    if not job:
+        raise HTTPException(404, "مهمة التدريب غير موجودة")
+    return {"job": job, "metrics": database.training_job_metrics(user, job_id)}
 
 
 @app.get("/api/datasets")
