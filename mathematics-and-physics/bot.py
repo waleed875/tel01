@@ -4,7 +4,6 @@ import base64
 import io
 import logging
 import os
-from pathlib import Path
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums import ChatAction, ChatType
@@ -35,6 +34,14 @@ TOPICS = {
         'beginner': 'الحركة والسرعة', 'intermediate': 'القوة وقوانين نيوتن',
         'highschool': 'الطاقة والشغل', 'university': 'قوانين الديناميكا الحرارية',
     },
+    'software': {
+        'beginner': 'أساسيات Python', 'intermediate': 'الخوارزميات وهياكل البيانات',
+        'highschool': 'تصميم البرمجيات والاختبارات', 'university': 'هندسة الأنظمة الموزعة',
+    },
+    'electronics': {
+        'beginner': 'المقاومة والجهد والتيار', 'intermediate': 'قوانين كيرشوف',
+        'highschool': 'دوائر المنطق الرقمي', 'university': 'الأنظمة المدمجة والمتحكمات الدقيقة',
+    },
 }
 
 
@@ -45,6 +52,7 @@ def button(label: str, data: str) -> InlineKeyboardButton:
 def menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [button('📐 الرياضيات', 'subject:math'), button('⚛️ الفيزياء', 'subject:physics')],
+        [button('💻 البرمجيات', 'subject:software'), button('🔌 الإلكترونيات', 'subject:electronics')],
         [button('📚 اشرح لي درسًا', 'action:lesson'), button('🧠 اختبرني', 'action:quiz')],
         [button('🎓 مستواي', 'action:level'), button('📊 تقدمي', 'action:progress')],
     ])
@@ -98,9 +106,6 @@ async def ask_ai(message: Message, prompt: str, image_data_url: str | None = Non
         if not message.from_user:
             return
         user_id = message.from_user.id
-    if teacher is None:
-        await message.answer('⚙️ ميزة الشرح الذكي غير مفعلة. أضف OPENAI_API_KEY في ملف .env. يمكنك استخدام /quiz للاختبارات المجانية.')
-        return
     if not store.claim_quota(user_id, DAILY_AI_LIMIT):
         await message.answer(f'⏳ وصلت إلى الحد اليومي ({DAILY_AI_LIMIT} طلبًا ذكيًا). يمكنك متابعة /quiz، ويُعاد ضبط الحد في منتصف الليل بتوقيت UTC.')
         return
@@ -114,7 +119,7 @@ async def ask_ai(message: Message, prompt: str, image_data_url: str | None = Non
     except Exception:
         store.release_quota(user_id)
         log.exception('AI request failed for user %s', user_id)
-        await message.answer('تعذر الاتصال بخدمة الشرح الآن. تحقق من المفتاح والرصيد والاتصال، ثم حاول مجددًا.')
+        await message.answer('تعذر الاتصال بنموذج Ollama المحلي. تحقق من تشغيل الحاويات وتنزيل النموذج: docker compose logs ollama model-init tutor.')
         return
     store.add_exchange(user_id, prompt if not image_data_url else f'{prompt} [صورة أرسلها الطالب]', response)
     await send_chunks(message, response)
@@ -122,6 +127,9 @@ async def ask_ai(message: Message, prompt: str, image_data_url: str | None = Non
 
 async def send_quiz(message: Message, user_id: int):
     p = store.profile(user_id)
+    if p['subject'] not in ('math', 'physics'):
+        await message.answer('🧠 بنك الأسئلة الحالي مخصص للرياضيات والفيزياء. في البرمجيات والإلكترونيات اطلب: «اختبرني بسؤال عن الموضوع» ليطرح النموذج المحلي سؤالًا.')
+        return
     q = select_question(p['subject'], p['level'], p['last_question'])
     store.set_active_quiz(user_id, q.id)
     opts = [[button(f'{i+1}. {option}', f'answer:{q.id}:{i}')]
@@ -141,7 +149,7 @@ async def on_start(message: Message):
         'نتعلم معًا خطوة بخطوة، ونراجع المفاهيم بالأسئلة والتمارين.\n'
         f'مستواك الحالي: {LEVEL_NAMES[p["level"]]}، المادة: {SUBJECT_NAMES[p["subject"]]}.\n\n'
         'اختر مادة، ثم اضغط «اشرح لي درسًا» أو «اختبرني».\n'
-        'ويمكنك إرسال سؤالك مباشرة، أو صورة لمسألة.', reply_markup=menu(),
+        'ويمكنك إرسال سؤالك مباشرة، (حاليًا الأسئلة النصية فقط).', reply_markup=menu(),
     )
 
 
@@ -152,13 +160,15 @@ async def on_help(message: Message):
         '/start — القائمة الرئيسية\n'
         '/math — اختيار الرياضيات\n'
         '/physics — اختيار الفيزياء\n'
+        '/software — هندسة البرمجيات\n'
+        '/electronics — هندسة الإلكترونيات\n'
         '/level — تغيير المستوى\n'
         '/lesson موضوع — شرح موضوع تختاره (مثل /lesson الكسور)\n'
         '/quiz — اختبار قصير من بنك الأسئلة\n'
         '/progress — عرض تقدمك\n'
         '/new — بدء محادثة جديدة مع المعلم\n'
         '/delete_data — حذف كل بياناتك المسجلة\n\n'
-        'يمكنك أيضًا إرسال سؤال نصي أو صورة لمسألة. الصور تُرسل إلى خدمة OpenAI للتحليل.\n'
+        'يمكنك إرسال سؤالك النصي. النموذج الحالي نصي محلي ولا يدعم تحليل الصور.\n'
         f'حد الشرح الذكي اليومي: {DAILY_AI_LIMIT} طلبًا لكل مستخدم.', reply_markup=menu(),
     )
 
@@ -177,6 +187,22 @@ async def on_physics(message: Message):
     store.set_subject(message.from_user.id, 'physics')
     store.clear_history(message.from_user.id)
     await message.answer('⚛️ اخترنا الفيزياء. اسأل عن الحركة أو الكهرباء أو أي موضوع آخر.', reply_markup=menu())
+
+
+@router.message(Command('software'))
+async def on_software(message: Message):
+    assert message.from_user
+    store.set_subject(message.from_user.id, 'software')
+    store.clear_history(message.from_user.id)
+    await message.answer('💻 اخترنا هندسة البرمجيات.', reply_markup=menu())
+
+
+@router.message(Command('electronics'))
+async def on_electronics(message: Message):
+    assert message.from_user
+    store.set_subject(message.from_user.id, 'electronics')
+    store.clear_history(message.from_user.id)
+    await message.answer('🔌 اخترنا هندسة الإلكترونيات.', reply_markup=menu())
 
 
 @router.message(Command('level'))
@@ -306,28 +332,7 @@ async def delete_cb(call: CallbackQuery):
 
 @router.message(F.photo)
 async def on_photo(message: Message):
-    if not message.photo:
-        return
-    biggest = message.photo[-1]
-    if biggest.file_size and biggest.file_size > 5 * 1024 * 1024:
-        await message.answer('الصورة كبيرة. أرسل صورة أصغر من 5 ميغابايت.')
-        return
-    if teacher is None:
-        await message.answer('تحتاج الصور إلى مفتاح OpenAI في ملف .env. ما زال يمكنك استخدام /quiz.')
-        return
-    try:
-        memory = io.BytesIO()
-        await message.bot.download(biggest.file_id, destination=memory)
-        if memory.tell() > 5 * 1024 * 1024:
-            await message.answer('الصورة أكبر من الحد المسموح.')
-            return
-        encoded = base64.b64encode(memory.getvalue()).decode('ascii')
-    except Exception:
-        log.exception('Image download failed')
-        await message.answer('تعذر تنزيل الصورة من تلغرام. حاول إرسالها مجددًا.')
-        return
-    await ask_ai(message, (message.caption or 'اقرأ المسألة في الصورة، واشرحها لي خطوة بخطوة.')[:1200],
-                 f'data:image/jpeg;base64,{encoded}')
+    await message.answer('🖼️ النموذج المحلي المختار نصي فقط. اكتب نص المسألة لإعطائك شرحًا هندسيًا. يمكن إضافة نموذج بصري محلي لاحقًا.')
 
 
 @router.message(F.text)
@@ -352,12 +357,12 @@ async def main():
     token = os.getenv('TELEGRAM_BOT_TOKEN', '').strip()
     if not token or token.startswith('YOUR_'):
         raise SystemExit('Missing TELEGRAM_BOT_TOKEN in .env. Create a bot using @BotFather.')
-    store = Storage(os.getenv('DATABASE_PATH', 'data/students.sqlite3'))
-    ai_key = os.getenv('OPENAI_API_KEY', '').strip()
-    model = os.getenv('OPENAI_MODEL', 'gpt-6.1-terra')
-    teacher = Tutor(ai_key, model) if ai_key and not ai_key.startswith('YOUR_') else None
-    if teacher is None:
-        log.warning('OPENAI_API_KEY missing: AI lessons and images disabled; offline quizzes work.')
+    database_url = os.getenv('DATABASE_URL', '').strip()
+    if not database_url:
+        raise SystemExit('DATABASE_URL is required for PostgreSQL.')
+    store = Storage(database_url)
+    model = os.getenv('OLLAMA_MODEL', 'qwen2.5:3b')
+    teacher = Tutor(model=model, base_url=os.getenv('OLLAMA_URL', 'http://ollama:11434'))
     bot = Bot(token=token)
     dp = Dispatcher()
     dp.include_router(router)
@@ -366,6 +371,8 @@ async def main():
             BotCommand(command='start', description='ابدأ التعلم'),
             BotCommand(command='math', description='اختر الرياضيات'),
             BotCommand(command='physics', description='اختر الفيزياء'),
+            BotCommand(command='software', description='هندسة البرمجيات'),
+            BotCommand(command='electronics', description='هندسة الإلكترونيات'),
             BotCommand(command='level', description='اختر مستواك'),
             BotCommand(command='lesson', description='درس جديد'),
             BotCommand(command='quiz', description='اختبرني'),
@@ -373,7 +380,7 @@ async def main():
             BotCommand(command='new', description='محادثة جديدة'),
             BotCommand(command='help', description='المساعدة'),
         ])
-        log.info('Bot started using long polling. Model=%s; AI enabled=%s', model, teacher is not None)
+        log.info('Bot started using long polling. Model=%s; Local Ollama enabled=%s', model, teacher is not None)
         await dp.start_polling(bot, tasks_concurrency_limit=25)
     finally:
         await bot.session.close()
