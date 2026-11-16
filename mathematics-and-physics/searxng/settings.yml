@@ -1,0 +1,14 @@
+use_default_settings: true
+general:
+  instance_name: Engineering AI Lab - Local Research
+search:
+  safe_search: 1
+  formats:
+    - html
+    - json
+server:
+  secret_key: "replace-with-env-SEARXNG_SECRET"
+  limiter: false
+  image_proxy: false
+outgoing:
+  request_timeout: 9.0
