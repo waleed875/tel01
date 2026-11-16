@@ -142,3 +142,25 @@ jobs:
       - name: Remove disposable research containers
         if: always()
         run: docker compose down --remove-orphans
+
+  multi-language-sandbox:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mathematics-and-physics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download operator-approved fixed-version runtimes for test use
+        run: |
+          docker pull python:3.12-alpine
+          docker pull node:22-alpine
+          docker pull gcc:14
+      - name: Verify Docker-isolated Python, JavaScript, C, C++ and resource cutoffs
+        run: PYTHONPATH=. python tests/multilanguage_live_smoke.py
+      - name: Verify no disposable run containers remain
+        if: always()
+        run: |
+          docker ps -a --format '{{.Names}}' | grep '^lab-code-' && exit 1 || true
