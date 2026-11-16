@@ -309,6 +309,18 @@ def safe_preview_type(path: str, data: bytes) -> str:
     raise HTTPException(415, "هذا النوع غير مدعوم في المعاينة الآمنة؛ استخدم التنزيل.")
 
 
+@app.get("/api/projects/{project_id}/file-metadata")
+async def project_file_metadata(project_id: int, path: str,
+                                user: Annotated[int, Depends(session_user)],
+                                database: Annotated[Storage, Depends(db)]):
+    project = owned_project(database, user, project_id)
+    try:
+        item = await GiteaClient().read_file(project["repo_name"], path)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"path": item["path"], "sha": item["sha"], "size": item["size"]}
+
+
 @app.get("/api/projects/{project_id}/preview")
 async def preview_project_file(project_id: int, path: str,
                                user: Annotated[int, Depends(session_user)],
