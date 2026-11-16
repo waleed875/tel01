@@ -5,6 +5,7 @@ class. All images are locally labeled by the owner; this is a supervised
 classification experiment, not a general visual reasoning model.
 """
 import argparse
+import hashlib
 import json
 import random
 from pathlib import Path
@@ -21,6 +22,7 @@ def prepare_dataset(root: Path, *, seed: int, size: int = 64):
     if len(classes) < 2:
         raise ValueError("At least two class folders are required")
     rows = []
+    seen_hashes = set()
     for idx, label in enumerate(classes):
         files = sorted(x for x in (root / label).iterdir()
                        if x.suffix.lower() in (".png", ".jpg", ".jpeg"))
@@ -30,7 +32,12 @@ def prepare_dataset(root: Path, *, seed: int, size: int = 64):
             if file.stat().st_size > 2 * 1024 * 1024:
                 raise ValueError("Image exceeds 2 MiB")
             # The same safety constraints used by the upload endpoint.
-            describe_image(file.read_bytes())
+            data = file.read_bytes()
+            describe_image(data)
+            digest = hashlib.sha256(data).hexdigest()
+            if digest in seen_hashes:
+                raise ValueError("Duplicate image bytes may leak between training and held-out examples")
+            seen_hashes.add(digest)
             with Image.open(file) as image:
                 image = ImageOps.exif_transpose(image).convert("RGB").resize((size, size))
                 tensor = torch.tensor(list(image.getdata()), dtype=torch.float32)
