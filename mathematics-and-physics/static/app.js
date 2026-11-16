@@ -751,6 +751,62 @@ async function claimLegacy(){
   }catch(e){toast(e.message);}
 }
 
+let designedFiles=null;
+function downloadGeneratedFile(name,content,type){
+  const blob=new Blob([content],{type:type+";charset=utf-8"});
+  const href=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=href;a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(href),1000);
+}
+async function analyzeVisionImage(event){
+  event.preventDefault();
+  const file=$("vision-image").files?.[0];
+  if(!file||file.size>2*1024*1024||!["image/png","image/jpeg"].includes(file.type)){
+    toast("اختر صورة PNG أو JPEG بحجم لا يتجاوز 2 ميغابايت");return;
+  }
+  const button=$("vision-button");button.disabled=true;
+  const result=$("vision-result");
+  result.textContent="جارٍ تحليل خصائص الصورة محليًا...";
+  try{
+    const bytes=new Uint8Array(await file.arrayBuffer());
+    const info=await api("vision/analyze",{method:"POST",
+      body:JSON.stringify({image_base64:bytesToBase64(bytes)})});
+    result.replaceChildren();
+    result.append(mk("p","",info.width+" × "+info.height+" بكسل • "+info.orientation));
+    result.append(mk("p","","متوسط RGB: "+info.mean_rgb.join(", ")+" • مؤشر التدرّج: "+info.texture_score));
+    const palette=mk("div","vision-colors");
+    for(const item of info.palette){
+      const swatch=mk("div","vision-swatch");
+      swatch.style.background="rgb("+item.rgb.join(",")+")";
+      swatch.title="RGB "+item.rgb.join(",")+" • "+(item.share*100).toFixed(1)+"%";
+      palette.append(swatch);
+    }
+    result.append(palette,mk("p","help-text",info.notice));
+  }catch(e){result.textContent=e.message}
+  finally{button.disabled=false;}
+}
+async function createWebDesign(event){
+  event.preventDefault();
+  const button=$("web-design-button");
+  const sections=Array.from(document.querySelectorAll("input[name=web-section]:checked"),x=>x.value);
+  if(!sections.length){toast("اختر قسمًا واحدًا على الأقل");return}
+  button.disabled=true;
+  try{
+    designedFiles=await api("design/scaffold",{method:"POST",body:JSON.stringify({
+      title:$("web-design-title").value,description:$("web-design-description").value,
+      style:$("web-design-style").value,sections
+    })});
+    const html=designedFiles.files.find(f=>f.path==="index.html").content;
+    const css=designedFiles.files.find(f=>f.path==="style.css").content;
+    const inline=html.replace('<link rel="stylesheet" href="style.css">',"<style>"+css+"</style>");
+    const frame=$("web-design-preview");
+    frame.srcdoc=inline; // sandbox has no allow-scripts or same-origin.
+    $("web-design-source").value=html;
+    $("web-design-note").textContent=designedFiles.notice;
+    $("web-design-result").classList.remove("hidden");
+  }catch(e){toast(e.message)}
+  finally{button.disabled=false;}
+}
 function initBindings(){
   document.querySelectorAll("[data-view]").forEach(el=>el.addEventListener("click",()=>go(el.dataset.view)));
   document.querySelectorAll("[data-go]").forEach(el=>el.addEventListener("click",()=>go(el.dataset.go)));
@@ -760,6 +816,16 @@ function initBindings(){
   $("clear-history").addEventListener("click",async()=>{if(!confirm("مسح المحادثة الحالية؟"))return;try{await api("history",{method:"DELETE"});$("messages").replaceChildren();chatPlaceholder();toast("تم مسح المحادثة");}catch(e){toast(e.message);}});
   $("new-quiz").addEventListener("click",startQuiz);
   $("ohm-form").addEventListener("submit",calculateOhm);
+  $("vision-form").addEventListener("submit",analyzeVisionImage);
+  $("web-design-form").addEventListener("submit",createWebDesign);
+  $("download-designed-html").addEventListener("click",()=>{
+    const f=designedFiles?.files.find(x=>x.path==="index.html");
+    if(f)downloadGeneratedFile(f.path,f.content,"text/html");
+  });
+  $("download-designed-css").addEventListener("click",()=>{
+    const f=designedFiles?.files.find(x=>x.path==="style.css");
+    if(f)downloadGeneratedFile(f.path,f.content,"text/css");
+  });
   $("project-create-form").addEventListener("submit",async e=>{
     e.preventDefault();const btn=$("project-create-btn");btn.disabled=true;
     try{
