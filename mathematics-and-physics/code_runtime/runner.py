@@ -95,7 +95,10 @@ def _bounded_output(command: list[str], *, container_name: str, timeout: int):
                 if truncated:
                     break
             if not timed_out and not truncated:
-                process.wait(timeout=max(0.1, timeout - (time.monotonic() - start)))
+                try:
+                    process.wait(timeout=max(0.1, timeout - (time.monotonic() - start)))
+                except subprocess.TimeoutExpired:
+                    timed_out = True
     finally:
         if process.poll() is None:
             process.kill()
