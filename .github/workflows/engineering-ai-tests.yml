@@ -168,3 +168,30 @@ jobs:
             docker ps -a --format '{{.Names}}' | grep '^lab-code-'
             exit 1
           fi
+
+  multi-language-extended:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mathematics-and-physics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pull fixed-version Go Rust Java Ruby and PHP images
+        run: |
+          docker pull golang:1.24-alpine
+          docker pull rust:1.86-alpine
+          docker pull eclipse-temurin:21-jdk-alpine
+          docker pull ruby:3.3-alpine
+          docker pull php:8.3-cli-alpine
+      - name: Execute remaining five languages inside local-only sandbox
+        run: PYTHONPATH=. python tests/multilanguage_extended_smoke.py
+      - name: Verify all disposable program containers cleaned
+        if: always()
+        run: |
+          if docker ps -a --format '{{.Names}}' | grep -q '^lab-code-'; then
+            docker ps -a --format '{{.Names}}' | grep '^lab-code-'
+            exit 1
+          fi
