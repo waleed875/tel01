@@ -4,6 +4,7 @@ AST checks are defense in depth. They are not a general Python sandbox.
 This process deliberately receives only read-only candidate and case files.
 """
 import ast
+import builtins
 import json
 import sys
 from pathlib import Path
@@ -35,6 +36,8 @@ def validate_candidate(source: str, function: str) -> ast.Module:
         raise ValueError("Required function not defined or duplicate names")
     if len(defined) > 6:
         raise ValueError("Too many function definitions")
+    if sum(1 for _ in ast.walk(tree)) > 2500:
+        raise ValueError("Candidate AST is too complex")
     for node in ast.walk(tree):
         if isinstance(node, BANNED_NODES):
             raise ValueError(f"Forbidden Python construct: {type(node).__name__}")
@@ -61,7 +64,7 @@ def execute(task: dict, source: str) -> dict:
         tree = validate_candidate(source, function)
     except ValueError as exc:
         return {"error": str(exc), "passed": 0, "total": len(task["cases"]), "outcomes": []}
-    allowed = {key: getattr(__builtins__, key) for key in ALLOWED_BUILTINS}
+    allowed = {key: getattr(builtins, key) for key in ALLOWED_BUILTINS}
     namespace = {"__builtins__": allowed}
     try:
         exec(compile(tree, "<candidate>", "exec"), namespace, namespace)
