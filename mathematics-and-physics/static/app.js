@@ -796,6 +796,24 @@ async function analyzeVisionImage(event){
   }catch(e){result.textContent=e.message}
   finally{button.disabled=false;}
 }
+async function askVisualModel(event){
+  event.preventDefault();
+  const file=$("vision-image").files?.[0];
+  if(!file||file.size>2*1024*1024||!["image/png","image/jpeg"].includes(file.type)){
+    toast("اختر أولًا صورة PNG/JPEG صالحة");return;
+  }
+  const button=$("visual-qa-button");
+  const output=$("visual-qa-result");
+  button.disabled=true;output.textContent="جارٍ توليد جواب تجريبي من الأوزان المحلية...";
+  try{
+    const bytes=new Uint8Array(await file.arrayBuffer());
+    const result=await api("vision/ask",{method:"POST",body:JSON.stringify({
+      image_base64:bytesToBase64(bytes),question:$("visual-question").value.trim()
+    })});
+    output.replaceChildren(mk("p","",result.answer),mk("p","help-text",result.notice));
+  }catch(err){output.textContent=err.message;}
+  finally{button.disabled=false;}
+}
 async function createWebDesign(event){
   event.preventDefault();
   const button=$("web-design-button");
@@ -831,6 +849,7 @@ function initBindings(){
   $("new-quiz").addEventListener("click",startQuiz);
   $("ohm-form").addEventListener("submit",calculateOhm);
   $("vision-form").addEventListener("submit",analyzeVisionImage);
+  $("visual-question-form").addEventListener("submit",askVisualModel);
   $("web-design-form").addEventListener("submit",createWebDesign);
   $("download-designed-html").addEventListener("click",()=>{
     const f=designedFiles?.files.find(x=>x.path==="index.html");
