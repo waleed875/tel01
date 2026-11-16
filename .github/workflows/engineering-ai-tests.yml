@@ -96,3 +96,49 @@ jobs:
           python-version: '3.12'
       - name: Verify the complete backup restores into fresh disposable Docker resources
         run: PYTHONPATH=. python tests/backup_restore_live_smoke.py
+
+  ai-browser-live:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mathematics-and-physics
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start isolated AI browser and SearXNG search
+        run: |
+          cp .env.example .env
+          docker compose up -d --build ai-browser searxng
+      - name: Check local JSON search and prohibited internal URL in isolated container
+        run: |
+          docker compose exec -T ai-browser python - <<'PY'
+          import json
+          import time
+          import urllib.request
+          import urllib.error
+
+          for attempt in range(60):
+              try:
+                  with urllib.request.urlopen("http://searxng:8080/", timeout=3) as r:
+                      assert r.status == 200
+                  break
+              except Exception:
+                  time.sleep(2)
+          else:
+              raise SystemExit("SearXNG did not start in allotted time")
+
+          request = urllib.request.Request(
+              "http://127.0.0.1:8085/read",
+              data=json.dumps({"url":"https://127.0.0.1/admin"}).encode(),
+              headers={"Content-Type":"application/json"},
+              method="POST")
+          try:
+              urllib.request.urlopen(request, timeout=8)
+          except urllib.error.HTTPError as exc:
+              assert exc.code == 422, exc.code
+          else:
+              raise AssertionError("Research service permitted private IP")
+          print("PASS: SearXNG alive, isolated reader rejects localhost")
+          PY
+      - name: Remove disposable research containers
+        if: always()
+        run: docker compose down --remove-orphans
