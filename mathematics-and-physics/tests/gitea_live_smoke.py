@@ -21,6 +21,10 @@ async def main():
         created = True
         assert repo["name"] == name
         assert repo["private"] is True, "Test repository must be private"
+        archived = await client.set_archived(name, True)
+        assert archived["archived"] is True
+        unarchived = await client.set_archived(name, False)
+        assert unarchived["archived"] is False
         listing = await client.entries(name)
         assert isinstance(listing, list)
         source = "src/demo.py"
