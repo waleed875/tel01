@@ -54,9 +54,10 @@ def stream_compose_dump(arguments: list[str], output: Path):
         output.unlink(missing_ok=True)
         raise RuntimeError("Docker backup command failed: " +
                            process.stderr.decode("utf-8", "replace")[-1200:])
-    if output.stat().st_size < 128:
+    minimum_bytes = 128 if output.name.endswith(".dump") else 30
+    if output.stat().st_size < minimum_bytes:
         output.unlink(missing_ok=True)
-        raise RuntimeError("Backup file unexpectedly empty: " + output.name)
+        raise RuntimeError("Backup file unexpectedly small: " + output.name)
 
 
 def sha256sum(path: Path) -> str:
@@ -104,6 +105,14 @@ def backup(directory: Path):
         for filename, command in FILES.items():
             print(f"Backing up {filename}", flush=True)
             stream_compose_dump(command, directory / filename)
+        # Validate both generated compressed archives before declaring success.
+        import tarfile
+        for filename in ("gitea_data.tar.gz", "trained_models.tar.gz"):
+            with tarfile.open(directory / filename, "r:gz") as archive:
+                for entry in archive:
+                    if (entry.name.startswith("/") or ".." in entry.name.split("/")
+                            or not (entry.isfile() or entry.isdir())):
+                        raise RuntimeError("Unsafe backup archive member: " + entry.name)
         manifest = {
             "format": 2,
             "created_at": datetime.now(timezone.utc).isoformat(),
