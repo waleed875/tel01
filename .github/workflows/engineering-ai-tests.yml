@@ -95,4 +95,4 @@ jobs:
         with:
           python-version: '3.12'
       - name: Verify the complete backup restores into fresh disposable Docker resources
-        run: python -m tests.backup_restore_live_smoke
+        run: PYTHONPATH=. python tests/backup_restore_live_smoke.py
