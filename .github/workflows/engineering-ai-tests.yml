@@ -48,6 +48,11 @@ jobs:
         run: python -m compileall -q webapp.py storage.py tutor.py engine knowledge.py questions.py tests
       - name: Unit and PostgreSQL integration tests
         run: python -m unittest discover -s tests -v
+      - name: Validate Compose configuration with placeholder CI secrets
+        env:
+          POSTGRES_PASSWORD: ci-local-db-password
+          GITEA_DB_PASSWORD: ci-local-gitea-password
+        run: docker compose config --quiet
 
   gitea-live:
     runs-on: ubuntu-latest
