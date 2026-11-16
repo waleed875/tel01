@@ -188,7 +188,11 @@ async function startQuiz(){
 function renderExamples(items){
   const root=$("dataset-list");root.replaceChildren();
   $("dataset-count").textContent=items.length;
+  const approved=items.filter(item=>item.status==="approved").length;
+  const stats=$("dataset-stats");
+  if(stats) stats.textContent=approved+" معتمد • "+(items.length-approved)+" مسودة";
   if(!items.length){
+    const stats=$("dataset-stats");if(stats)stats.textContent="0 معتمد • 0 مسودة";
     root.append(mk("div","empty-state","لا توجد أمثلة محفوظة في هذه الجلسة. أضف مثالًا أولًا، ثم راجعه قبل استخدامه في التدريب."));
     return;
   }
@@ -197,7 +201,18 @@ function renderExamples(items){
     article.append(mk("h3","",(SUBJECTS[item.subject]?.label||item.subject)+" · "+item.question));
     article.append(mk("p","",item.answer));
     const foot=mk("div","item-footer");
-    foot.append(mk("span","","مسودة مراجعة · "+new Date(item.created_at).toLocaleDateString("ar")));
+    foot.append(mk("span","",(item.status==="approved"?"معتمد للتدريب":"مسودة للمراجعة")+" · "+new Date(item.created_at).toLocaleDateString("ar")));
+    const review=mk("button","review-btn",item.status==="approved"?"إلغاء الاعتماد":"اعتماد للتدريب");
+    review.type="button";
+    review.addEventListener("click",async()=>{
+      try{
+        await api("datasets/"+item.id+"/review",{method:"PATCH",
+          body:JSON.stringify({approved:item.status!=="approved"})});
+        toast(item.status==="approved"?"تم سحب الاعتماد":"تم اعتماد المثال للمجموعة التدريبية");
+        await loadExamples();
+      }catch(e){toast(e.message)}
+    });
+    foot.append(review);
     const del=mk("button","","حذف المثال");del.type="button";
     del.addEventListener("click",async()=>{
       if(!confirm("هل تريد حذف هذا المثال من مسودات التدريب؟"))return;
