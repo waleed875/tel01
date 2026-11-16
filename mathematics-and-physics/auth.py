@@ -147,6 +147,18 @@ class AuthStore:
         session = self.session(token)
         return bool(session and hmac.compare_digest(session["csrf_hash"], token_hash(csrf)))
 
+    def rotate_csrf(self, token: str) -> str | None:
+        if not isinstance(token, str) or not re.fullmatch("[0-9a-f]{64}", token):
+            return None
+        csrf = secrets.token_hex(32)
+        with self.connect() as db:
+            updated = db.execute(
+                """UPDATE auth_sessions SET csrf_hash=%s
+                   WHERE token_hash=%s AND expires_at>NOW() RETURNING user_id""",
+                (token_hash(csrf), token_hash(token)),
+            ).fetchone()
+            return csrf if updated else None
+
     def logout(self, token: str):
         if not isinstance(token, str) or not re.fullmatch("[0-9a-f]{64}", token):
             return
