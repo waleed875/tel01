@@ -263,6 +263,30 @@ async function searchProjectFiles(){
 function isPreviewable(path){
   return /\.(?:pdf|png|jpe?g|gif|webp|md|markdown|txt)$/i.test(path);
 }
+function renderMarkdownSafely(raw){
+  // Deliberately use textContent only: embedded HTML must never execute.
+  const container=mk("div","preview-markdown formatted-markdown");
+  let code=null;
+  for(const line of raw.split("\n")){
+    if(/^\s*```/.test(line)){
+      if(code){code=null;}else{code=mk("pre","markdown-code");container.append(code);}
+      continue;
+    }
+    if(code){code.append(mk("div","",line));continue;}
+    const heading=line.match(/^(#{1,5})\s+(.+)$/);
+    if(heading){
+      const level=Math.min(heading[1].length+1,6);
+      container.append(mk("h"+level,"",heading[2]));
+    }else if(/^\s*[-*+]\s+/.test(line)){
+      container.append(mk("div","markdown-list","• "+line.replace(/^\s*[-*+]\s+/,"")));
+    }else if(!line.trim()){
+      container.append(mk("div","markdown-blank",""));
+    }else{
+      container.append(mk("p","",line));
+    }
+  }
+  return container;
+}
 function clearPreview(){
   const container=$("file-preview-content");
   container.replaceChildren();
@@ -297,8 +321,7 @@ async function previewFile(path){
       holder.append(frame);
       holder.append(mk("p","help-text","قد لا تدعم بعض المتصفحات عرض PDF في إطار محمي. استخدم التنزيل عند الحاجة."));
     }else{
-      const pre=mk("pre","preview-markdown",await response.text());
-      holder.append(pre);
+      holder.append(renderMarkdownSafely(await response.text()));
     }
   }catch(e){holder.replaceChildren(mk("p","help-text","فشلت المعاينة: "+e.message));}
 }
