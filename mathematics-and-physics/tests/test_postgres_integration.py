@@ -55,6 +55,29 @@ class PostgresTests(unittest.TestCase):
         self.db.finish_training_job(job["id"], True, "/app/models/run-test/checkpoint.pt")
         self.assertEqual(self.db.training_job(self.uid, job["id"])["state"], "completed")
 
+    def test_engineering_project_ownership(self):
+        project = self.db.create_engineering_project(
+            self.uid, "Math robot control", "electronics",
+            "engineering-test-" + str(abs(self.uid))
+        )
+        self.assertEqual(project["title"], "Math robot control")
+        self.assertEqual(self.db.engineering_project(self.uid, project["id"])["kind"], "electronics")
+        self.assertIsNone(self.db.engineering_project(self.uid + 1, project["id"]))
+        own = self.db.list_engineering_projects(self.uid)
+        self.assertTrue(any(p["id"] == project["id"] for p in own))
+        self.assertFalse(any(p["id"] == project["id"]
+                             for p in self.db.list_engineering_projects(self.uid + 1)))
+        with self.assertRaises(ValueError):
+            self.db.delete_user(self.uid)
+        self.assertEqual(
+            self.db.begin_engineering_project_deletion(self.uid, project["id"])["deletion_state"],
+            "deleting",
+        )
+        self.assertFalse(self.db.finish_engineering_project_deletion(self.uid + 1, project["id"]))
+        self.assertTrue(self.db.finish_engineering_project_deletion(self.uid, project["id"]))
+        self.assertEqual(self.db.list_engineering_projects(self.uid), [])
+
+
     def test_training_requires_approved_examples(self):
         for n in range(12):
             self.db.add_training_example(self.uid, "physics",

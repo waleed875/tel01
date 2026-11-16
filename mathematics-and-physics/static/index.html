@@ -95,7 +95,42 @@
 
         <section class="view hidden" id="view-projects">
           <div class="panel-head"><div><span class="overline">BUILD & LEARN</span><h2>المشاريع العملية</h2><p>أفكار تطبيقية تربط الرياضيات والفيزياء بالبرمجة والإلكترونيات.</p></div></div>
-          <div id="projects-content" class="learning-grid"></div>
+          <div class="panel workspace-repositories">
+            <div class="form-heading"><h3>مستودعات المشاريع المحلية في Gitea</h3><small id="gitea-state">التحقق من اتصال Gitea...</small></div>
+            <form id="project-create-form" class="field-grid">
+              <label>اسم المشروع <input type="text" id="project-title" minlength="3" maxlength="120" placeholder="مثل: نظام تحكم إلكتروني" required></label>
+              <label>نوع المشروع <select id="project-kind"><option value="software">هندسة البرمجيات</option><option value="electronics">هندسة الإلكترونيات</option><option value="physics">الفيزياء</option><option value="math">الرياضيات</option><option value="general">عام</option></select></label>
+              <button type="submit" class="primary-btn" id="project-create-btn">إنشاء مشروع</button>
+            </form>
+            <div id="repo-list" class="repository-list"></div>
+          </div>
+          <section id="project-explorer" class="panel workspace-explorer hidden">
+            <div class="form-heading"><h3 id="explorer-title">ملفات المشروع</h3><button type="button" id="explorer-back" class="subtle-btn">الرجوع للمشاريع</button></div>
+            <div class="explorer-toolbar">
+              <label>مجلد <input type="text" id="folder-path" placeholder="المجلد الرئيسي / src" aria-label="مسار المجلد"></label>
+              <button type="button" id="browse-folder" class="ghost-btn">استعراض</button>
+              <button type="button" id="show-commits" class="ghost-btn">سجل Git</button>
+            </div>
+            <div id="project-files" class="file-list"></div>
+            <div id="commit-list" class="commit-list hidden"></div>
+            <div class="editor-panel">
+              <h3>محرر ملفات المشروع</h3>
+              <label>المسار النسبي للملف <input type="text" id="editor-filepath" placeholder="src/main.py أو diagrams/circuit.kicad_sch" maxlength="500"></label>
+              <textarea id="file-editor" rows="12" spellcheck="false" placeholder="اكتب محتوى الملف النصي أو اختر ملفًا من القائمة..."></textarea>
+              <div class="editor-buttons">
+                <button type="button" class="primary-btn" id="save-file">حفظ Git Commit</button>
+                <button type="button" class="ghost-btn" id="new-file">ملف نصي جديد</button>
+                <button type="button" class="danger-btn" id="delete-file">حذف الملف الحالي</button>
+              </div>
+              <div id="editor-revision" class="help-text">لم يُحدد إصدار ملف بعد.</div>
+            </div>
+            <form id="file-upload-form" class="upload-form">
+              <h3>رفع ملف إلى المشروع</h3>
+              <label>الملف (2 ميغابايت كحد أقصى) <input type="file" id="upload-file" required></label>
+              <label>المسار داخل المستودع <input type="text" id="upload-path" placeholder="assets/diagram.png" maxlength="500" required></label>
+              <button type="submit" class="ghost-btn" id="upload-btn">رفع وإنشاء Commit</button>
+            </form>
+          </section>
         </section>
 
         <section class="view hidden" id="view-tools">

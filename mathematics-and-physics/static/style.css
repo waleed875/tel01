@@ -56,3 +56,40 @@ footer{padding:20px 30px;color:#6783a2;font-size:11px;border-top:1px solid #2033
 @media(max-width:720px){.app-shell{display:block}.sidebar{position:static;width:100%;min-width:0;height:auto;display:block;padding:9px 10px}.brand{display:none}.sidebar nav{display:flex;flex-direction:row;overflow-x:auto;gap:5px}.nav-link{width:auto;min-width:55px;flex:0 0 auto;font-size:0;padding:9px}.nav-icon{font-size:22px}.topbar{height:auto;padding:12px;gap:8px;flex-wrap:wrap}.topbar-heading{min-width:0;flex:1}.topbar-heading strong{font-size:17px}.mobile-logo{display:block;color:#70c8ff;font-size:22px}.search-wrap{order:3;max-width:none;height:40px}.search-wrap kbd{display:none}.body-grid{padding:12px;gap:13px}.hero{min-height:230px;padding:23px 18px}.hero-copy{max-width:100%}.hero h1{font-size:28px}.hero-graphic{opacity:.13;width:60%;left:0}.hero-actions{gap:8px}.hero p{font-size:12px}.right-rail{grid-template-columns:1fr}.subject-grid,.feature-grid,.learning-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.stats{grid-template-columns:1fr 1fr}.field-grid{grid-template-columns:1fr 1fr}.field-grid button{grid-column:1/-1}.form-heading{display:block}.composer-foot span{display:none}.messages{min-height:280px}.panel-head{align-items:start;flex-direction:column}.panel{padding:16px}.chat-head{flex-wrap:wrap}}
 @media(max-width:450px){.subject-grid,.feature-grid,.learning-grid{grid-template-columns:1fr}.hero h1{font-size:25px}.stats{grid-template-columns:1fr}.right-rail{display:flex}.progress-layout{justify-content:space-around}.form-actions{flex-direction:column;align-items:start}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
+
+/* Local Gitea engineering workspace */
+.workspace-repositories{margin-top:22px}
+.repository-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;margin-top:18px}
+.repo-row{border:1px solid #315475;border-radius:11px;background:#192b46;color:#e5f3ff;text-align:right;padding:17px;display:flex;flex-direction:column;gap:8px;font-weight:700}
+.repo-row:hover{background:#203e63;border-color:#5fbeff}
+.repo-row small{color:#9ab6d1;font-weight:400}
+.workspace-explorer{margin-top:20px}
+.explorer-toolbar{display:flex;flex-wrap:wrap;align-items:end;gap:10px;margin:15px 0}
+.explorer-toolbar label{flex:1;min-width:175px;display:flex;flex-direction:column;gap:7px;color:#adc7df}
+.explorer-toolbar input{width:100%}
+.file-list{border:1px solid #345173;border-radius:12px;max-height:350px;overflow:auto;background:#0e1b30;padding:6px}
+.file-row{display:flex;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid #29415b}
+.file-row:last-child{border-bottom:none}
+.file-name{background:transparent;color:#daecff;text-align:right;padding:13px 10px;border:0;flex:1;overflow-wrap:anywhere}
+.file-name:hover{color:#63ceff}
+.file-download{background:#1c395b;color:#b1d8ff;border:1px solid #345878;border-radius:8px;padding:6px 10px}
+.editor-panel{margin-top:22px;border-top:1px solid #2a425f;padding-top:20px}
+.editor-panel h3{margin:0 0 17px}
+.editor-panel label,.upload-form label{display:flex;flex-direction:column;gap:7px;color:#a5bbd5;margin-bottom:12px}
+.editor-panel input{width:100%}
+#file-editor{width:100%;min-height:270px;line-height:1.55;direction:ltr;text-align:left;font-family:Consolas,"Courier New",monospace;font-size:13px;tab-size:4;white-space:pre;resize:vertical}
+.editor-buttons{display:flex;gap:10px;flex-wrap:wrap;margin:13px 0}
+.upload-form{margin-top:22px;padding-top:22px;border-top:1px solid #2a425f}
+.upload-form input{width:100%}
+.commit-list{background:#11263e;border-radius:10px;border:1px solid #365475;margin:15px 0;padding:10px}
+.commit-row{font-family:monospace;direction:ltr;text-align:left;overflow-wrap:anywhere;padding:9px;border-bottom:1px solid #29435f;color:#9fc8e7}
+.commit-row:last-child{border-bottom:0}
+[data-theme="light"] .repo-row,[data-theme="light"] .file-list,[data-theme="light"] .commit-list{background:#e8f3ff;color:#1b3755}
+[data-theme="light"] .file-name{color:#183c64}
+
+.repo-card{border-radius:12px;border:1px solid #315475;background:#14253c;padding:8px;display:flex;flex-direction:column;gap:6px}
+.repo-card .repo-row{width:100%;border:0;padding:12px;background:transparent}
+.repo-card .repo-row:hover{background:#1c3c5c}
+.repo-delete{border:1px solid #935464;border-radius:8px;padding:8px 10px;color:#ffd1dc;background:#402337;text-align:center;font-size:12px}
+.repo-delete:hover{background:#613248}
+.repo-delete:disabled{opacity:.55}
