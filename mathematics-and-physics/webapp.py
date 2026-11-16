@@ -18,6 +18,7 @@ from knowledge import find_references
 from questions import BY_ID, select_question
 from storage import Storage
 from tutor import Tutor, LEVEL_NAMES, SUBJECT_NAMES
+from engineering_domains import catalog as domain_catalog
 from gitea_client import GiteaClient, GiteaError, MAX_FILE_BYTES, validate_path
 from auth import AuthStore, SESSION_SECONDS
 from vision import describe_image
@@ -596,7 +597,7 @@ async def project_commits(project_id: int, user: Annotated[int, Depends(session_
 def catalog():
     """Curriculum and example projects are static; never present them as mastered content."""
     return {"curriculum": CURRICULUM, "projects": PROJECTS, "subjects": SUBJECT_NAMES,
-            "levels": LEVEL_NAMES}
+            "levels": LEVEL_NAMES, "specialization": domain_catalog()}
 
 
 @lru_cache(maxsize=4)

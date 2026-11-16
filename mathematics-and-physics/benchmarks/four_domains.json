@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "description": "Public smoke evaluation of four-domain engineering expertise. Must not train on these cases.",
+  "tasks": [
+    {
+      "id": "sw_sort",
+      "subject": "software",
+      "question": "ما التعقيد الزمني لخوارزمية الفرز بالدمج merge sort في الحالة الأسوأ؟ أجب بالترميز O.",
+      "answer": "O(n log n)",
+      "checks": {
+        "terms": [
+          "O(n log n)",
+          "O(nlogn)"
+        ]
+      }
+    },
+    {
+      "id": "sw_binary",
+      "subject": "software",
+      "question": "في بحث ثنائي عن عنصر ضمن قائمة مرتبة من 8 عناصر، ما أقصى عدد مقارنات أساسية تقريبًا؟ أجب بعدد صحيح.",
+      "answer": "4",
+      "checks": {
+        "numeric": 4
+      }
+    },
+    {
+      "id": "sw_stack",
+      "subject": "software",
+      "question": "ما بنية البيانات التي تتبع مبدأ LIFO؟ أجب بالاسم الإنجليزي فقط.",
+      "answer": "stack",
+      "checks": {
+        "terms": [
+          "stack"
+        ]
+      }
+    },
+    {
+      "id": "math_derivative",
+      "subject": "math",
+      "question": "ما قيمة مشتقة الدالة f(x)=x²+3x عند x=2؟ أجب بالقيمة.",
+      "answer": "7",
+      "checks": {
+        "numeric": 7
+      }
+    },
+    {
+      "id": "math_linear",
+      "subject": "math",
+      "question": "حل المعادلة 3x+7=22. ما قيمة x؟",
+      "answer": "5",
+      "checks": {
+        "numeric": 5
+      }
+    },
+    {
+      "id": "math_matrix",
+      "subject": "math",
+      "question": "ما محدد المصفوفة 2×2 ذات الصفين [3,2] و[1,4]؟",
+      "answer": "10",
+      "checks": {
+        "numeric": 10
+      }
+    },
+    {
+      "id": "electronics_ohm",
+      "subject": "electronics",
+      "question": "مقاومة مقدارها 200 أوم يمر بها تيار 0.02 أمبير. ما فرق الجهد بالفولت؟",
+      "answer": "4 V",
+      "checks": {
+        "numeric": 4,
+        "units": [
+          "V",
+          "فولت",
+          "volt"
+        ]
+      }
+    },
+    {
+      "id": "electronics_series",
+      "subject": "electronics",
+      "question": "مقاومتان 100 أوم و220 أوم على التوالي. ما المقاومة المكافئة بالأوم؟",
+      "answer": "320 Ω",
+      "checks": {
+        "numeric": 320,
+        "units": [
+          "Ω",
+          "أوم",
+          "ohm"
+        ]
+      }
+    },
+    {
+      "id": "electronics_power",
+      "subject": "electronics",
+      "question": "دارة جهدها 12 فولت والتيار 0.5 أمبير، ما القدرة الكهربائية بالواط؟",
+      "answer": "6 W",
+      "checks": {
+        "numeric": 6,
+        "units": [
+          "W",
+          "واط",
+          "watt"
+        ]
+      }
+    },
+    {
+      "id": "physics_force",
+      "subject": "physics",
+      "question": "كتلة جسم 3 كغ وتسارعه 4 متر/ثانية². ما مقدار القوة بالنيوتن؟",
+      "answer": "12 N",
+      "checks": {
+        "numeric": 12,
+        "units": [
+          "N",
+          "نيوتن",
+          "newton"
+        ]
+      }
+    },
+    {
+      "id": "physics_energy",
+      "subject": "physics",
+      "question": "جسم كتلته 2 كغ يتحرك بسرعة 3 م/ث. ما طاقته الحركية بالجول؟",
+      "answer": "9 J",
+      "checks": {
+        "numeric": 9,
+        "units": [
+          "J",
+          "جول",
+          "joule"
+        ]
+      }
+    },
+    {
+      "id": "physics_velocity",
+      "subject": "physics",
+      "question": "قطع جسم مسافة 150 متر في 30 ثانية بسرعة ثابتة. ما سرعته بالمتر/ثانية؟",
+      "answer": "5 m/s",
+      "checks": {
+        "numeric": 5,
+        "units": [
+          "m/s",
+          "متر/ثانية",
+          "م/ث"
+        ]
+      }
+    }
+  ]
+}

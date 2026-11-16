@@ -14,6 +14,8 @@ import sys
 import time
 
 from storage import Storage
+from engineering_domains import DOMAINS, verify_examples, coverage
+from benchmarks.evaluate_domains import load_benchmark, verify_no_train_leakage
 from .eval_holdout import evaluate_heldout
 
 MODEL_ROOT = Path(os.environ.get("MODEL_ROOT", "/app/models"))
@@ -42,13 +44,24 @@ def split_examples(examples: list[dict], seed: int):
     """Split by whole examples, never by bytes, to avoid train/eval overlap."""
     if len(examples) < 12:
         raise ValueError("At least twelve approved examples are required")
-    records = sorted(examples, key=lambda e: int(e["id"]))
-    random.Random(seed).shuffle(records)
-    evaluation_count = max(2, len(records) // 5)
-    train = records[evaluation_count:]
-    validation = records[:evaluation_count]
+    verify_examples(examples)
+    verify_no_train_leakage(load_benchmark()["tasks"], examples)
+    # Split WITHIN domains whenever the dataset contains enough distinct
+    # questions. One-example subjects are train-only; coverage reveals gaps.
+    train, validation = [], []
+    for subject in DOMAINS:
+        group = sorted(
+            (row for row in examples if row["subject"] == subject),
+            key=lambda row: int(row["id"]))
+        random.Random(f"{seed}:{subject}").shuffle(group)
+        heldout_size = max(1, len(group) // 5) if len(group) >= 2 else 0
+        validation.extend(group[:heldout_size])
+        train.extend(group[heldout_size:])
+    if len(validation) < 2 or not train:
+        raise ValueError("Need at least two independent held-out examples; add more per subject")
     if set(x["id"] for x in train) & set(x["id"] for x in validation):
-        raise AssertionError("Data leakage: overlapping train and validation examples")
+        raise AssertionError("Overlapping training and validation IDs")
+    coverage(train, validation)  # validates no repeated normalized questions
     return train, validation
 
 
@@ -80,7 +93,9 @@ def run_job(storage: Storage, job: dict):
     (folder / "heldout.json").write_text(
         json.dumps(validation, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    subject_coverage = coverage(train, validation)
     metadata = {
+        "domain_coverage": subject_coverage,
         "id":job_id,
         "seed":job["seed"],
         "steps":job["steps"],
