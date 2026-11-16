@@ -15,7 +15,7 @@ from tutor import build_engineering_prompt
 DATASET = Path(__file__).with_name("tool_proposals.json")
 # Match attempts at using the protocol even when their payload is invalid.
 # Do not mistake a rejected command for an intentional abstention.
-TOOL_ATTEMPT = re.compile(r"```[ \\t]*engineering-tool\\b", re.IGNORECASE)
+TOOL_ATTEMPT = re.compile(r"```[ \t]*engineering-tool\b", re.IGNORECASE)
 
 
 def load_suite(path=DATASET):
