@@ -44,7 +44,7 @@ function go(view){
   $("page-title").textContent=PAGES[view];
   $("hero").classList.toggle("hidden",view!=="home");
   if(view==="progress")loadProgress();
-  if(view==="datasets")loadExamples();
+  if(view==="datasets"){loadExamples();renderTrainingJobs();}
   if(view==="chat")loadHistory();
   window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -225,6 +225,65 @@ async function loadExamples(){
   try{const data=await api("datasets");renderExamples(data.examples);}
   catch(e){toast("تعذر تحميل مسودات التدريب: "+e.message);}
 }
+const TRAIN_STATES={queued:"في الانتظار",running:"قيد التدريب",completed:"اكتمل",failed:"فشل"};
+async function renderTrainingJobs(){
+  const root=$("training-jobs");
+  if(!root)return;
+  try{
+    const result=await api("training/jobs");
+    root.replaceChildren();
+    if(!result.jobs.length){
+      root.append(mk("div","empty-state","لا توجد تجارب تدريب حتى الآن. اعتمد بيانات التدريب أولًا."));
+      return;
+    }
+    for(const job of result.jobs){
+      const el=mk("article","dataset-item train-run");
+      const title=mk("h3","", "تجربة #"+job.id+" · "+(TRAIN_STATES[job.state]||job.state));
+      const details=mk("p","","خطوات: "+job.steps+"  •  أمثلة التدريب: "+job.training_count+
+        "  •  أمثلة التحقق: "+job.validation_count+"\n"+
+        "البذرة: "+job.seed+"  •  بصمة البيانات: "+job.snapshot_sha256.slice(0,12));
+      el.append(title,details);
+      if(job.train_loss!==null&&job.train_loss!==undefined){
+        el.append(mk("p","metric-text","خسارة التدريب: "+Number(job.train_loss).toFixed(4)+
+          "   •   خسارة التحقق: "+Number(job.validation_loss).toFixed(4)));
+      }
+      if(job.error)el.append(mk("p","training-error","الخطأ: "+job.error));
+      const more=mk("button","ghost-btn","عرض القياسات");more.type="button";
+      more.addEventListener("click",async()=>{
+        try{
+          const result=await api("training/jobs/"+job.id);
+          const metrics=result.metrics;
+          const detail=el.querySelector(".metric-list")||mk("div","metric-list");
+          detail.replaceChildren();
+          if(!metrics.length)detail.append(mk("p","","لم تُسجّل خسارة بعد؛ قد تكون المهمة قيد التحضير."));
+          else {
+            for(const m of metrics)detail.append(
+              mk("div","metric-row","خطوة "+m.step+"  |  تدريب "+Number(m.train_loss).toFixed(4)+
+                "  |  تحقق "+Number(m.validation_loss).toFixed(4))
+            );
+          }
+          if(!detail.parentNode)el.append(detail);
+        }catch(err){toast(err.message)}
+      });el.append(more);root.append(el);
+    }
+  }catch(err){root.replaceChildren(mk("div","empty-state",err.message));}
+}
+async function startTraining(e){
+  e.preventDefault();
+  const btn=$("start-training");btn.disabled=true;
+  try{
+    const steps=Number($("training-steps").value);
+    const seed=Number($("training-seed").value);
+    if(!Number.isInteger(steps)||steps<50||steps>300||!Number.isInteger(seed)||seed<0){
+      throw Error("راجع عدد الخطوات والبذرة العشوائية");
+    }
+    const job=await api("training/jobs",{method:"POST",body:JSON.stringify({steps,seed})});
+    toast("أُضيفت تجربة التدريب #"+job.id+" إلى قائمة الانتظار");
+    await renderTrainingJobs();
+  }catch(err){toast(err.message);}
+  finally{btn.disabled=false;}
+}
+
 async function sendChat(e){
   e.preventDefault();
   if(appState.loading)return;
@@ -271,6 +330,8 @@ function initBindings(){
   $("ohm-form").addEventListener("submit",calculateOhm);
   $("site-search").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();findLocal(e.target.value);}});
   document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();$("site-search").focus();}});
+  $("training-form").addEventListener("submit",startTraining);
+  $("refresh-training").addEventListener("click",renderTrainingJobs);
   $("dataset-form").addEventListener("submit",async e=>{
     e.preventDefault();
     const btn=$("save-example");
