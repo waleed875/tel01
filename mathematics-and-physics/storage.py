@@ -38,6 +38,32 @@ class Storage:
             db.execute("""ALTER TABLE training_examples ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ""")
             db.execute("""CREATE INDEX IF NOT EXISTS training_examples_user_idx
                 ON training_examples(user_id, id DESC)""")
+            db.execute("""CREATE TABLE IF NOT EXISTS training_jobs (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                state TEXT NOT NULL DEFAULT 'queued',
+                steps INTEGER NOT NULL,
+                seed INTEGER NOT NULL,
+                training_count INTEGER NOT NULL,
+                validation_count INTEGER NOT NULL,
+                snapshot_sha256 TEXT NOT NULL,
+                snapshot_json JSONB NOT NULL,
+                train_loss DOUBLE PRECISION,
+                validation_loss DOUBLE PRECISION,
+                checkpoint_path TEXT,
+                error TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                started_at TIMESTAMPTZ,
+                finished_at TIMESTAMPTZ
+            )""")
+            db.execute("""CREATE INDEX IF NOT EXISTS training_jobs_user_idx ON training_jobs(user_id,id DESC)""")
+            db.execute("""CREATE TABLE IF NOT EXISTS training_metrics (
+                job_id BIGINT NOT NULL REFERENCES training_jobs(id) ON DELETE CASCADE,
+                step INTEGER NOT NULL,
+                train_loss DOUBLE PRECISION,
+                validation_loss DOUBLE PRECISION,
+                PRIMARY KEY(job_id, step)
+            )""")
             db.execute("""CREATE TABLE IF NOT EXISTS ai_usage (
                 user_id BIGINT NOT NULL, day DATE NOT NULL, count INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY(user_id, day))""")
@@ -194,7 +220,115 @@ class Storage:
             ).fetchone()
             return row is not None
 
+    def create_training_job(self, user_id: int, steps: int, seed: int):
+        """Snapshot approved examples atomically; no drafts can enter the queue."""
+        import hashlib
+        import json
+        if not (50 <= steps <= 300 and 0 <= seed <= 2147483647):
+            raise ValueError("Training configuration outside safe limits")
+        with self._connect() as db:
+            db.execute("SELECT pg_advisory_xact_lock(%s)", (user_id,))
+            pending = db.execute(
+                """SELECT COUNT(*) AS n FROM training_jobs
+                   WHERE user_id=%s AND state IN ('queued','running')""",
+                (user_id,),
+            ).fetchone()["n"]
+            if pending:
+                raise ValueError("An unfinished training run already exists")
+            examples = db.execute(
+                """SELECT id,subject,question,answer FROM training_examples
+                   WHERE user_id=%s AND status='approved' ORDER BY id""",
+                (user_id,),
+            ).fetchall()
+            if len(examples) < 12:
+                raise ValueError("At least 12 approved examples are required")
+            # This snapshot survives subsequent edits to the source examples.
+            snapshot = json.dumps(examples, ensure_ascii=False, sort_keys=True)
+            digest = hashlib.sha256(snapshot.encode("utf-8")).hexdigest()
+            row = db.execute(
+                """INSERT INTO training_jobs(user_id,steps,seed,training_count,
+                   validation_count,snapshot_sha256,snapshot_json)
+                   VALUES(%s,%s,%s,%s,%s,%s,%s::jsonb)
+                   RETURNING id,state,steps,seed,training_count,validation_count,
+                   snapshot_sha256,created_at""",
+                (user_id, steps, seed, len(examples)-max(2, len(examples)//5),
+                 max(2, len(examples)//5), digest, snapshot),
+            ).fetchone()
+            return row
+
+    def list_training_jobs(self, user_id: int, limit: int = 30):
+        with self._connect() as db:
+            return db.execute(
+                """SELECT id,state,steps,seed,training_count,validation_count,
+                   snapshot_sha256,train_loss,validation_loss,created_at,started_at,
+                   finished_at,error FROM training_jobs WHERE user_id=%s
+                   ORDER BY id DESC LIMIT %s""",
+                (user_id, limit),
+            ).fetchall()
+
+    def training_job(self, user_id: int, job_id: int):
+        with self._connect() as db:
+            return db.execute(
+                """SELECT id,state,steps,seed,training_count,validation_count,
+                   snapshot_sha256,train_loss,validation_loss,created_at,started_at,
+                   finished_at,error FROM training_jobs WHERE user_id=%s AND id=%s""",
+                (user_id, job_id),
+            ).fetchone()
+
+    def training_job_metrics(self, user_id: int, job_id: int):
+        with self._connect() as db:
+            return db.execute(
+                """SELECT m.step,m.train_loss,m.validation_loss
+                   FROM training_metrics m JOIN training_jobs j ON j.id=m.job_id
+                   WHERE j.user_id=%s AND j.id=%s ORDER BY m.step""",
+                (user_id, job_id),
+            ).fetchall()
+
+    def claim_training_job(self):
+        """Single runner claims next queued job using row locking."""
+        with self._connect() as db:
+            row = db.execute(
+                """SELECT id FROM training_jobs WHERE state='queued'
+                   ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1"""
+            ).fetchone()
+            if row is None:
+                return None
+            db.execute(
+                """UPDATE training_jobs SET state='running',started_at=NOW()
+                   WHERE id=%s""", (row["id"],))
+            return db.execute(
+                """SELECT id,user_id,steps,seed,training_count,validation_count,
+                   snapshot_sha256,snapshot_json FROM training_jobs WHERE id=%s""",
+                (row["id"],),
+            ).fetchone()
+
+    def record_training_metric(self, job_id: int, step: int, train_loss: float, validation_loss: float):
+        with self._connect() as db:
+            db.execute(
+                """INSERT INTO training_metrics(job_id,step,train_loss,validation_loss)
+                   VALUES(%s,%s,%s,%s) ON CONFLICT(job_id,step)
+                   DO UPDATE SET train_loss=excluded.train_loss,
+                                 validation_loss=excluded.validation_loss""",
+                (job_id, step, train_loss, validation_loss),
+            )
+            db.execute(
+                """UPDATE training_jobs SET train_loss=%s,validation_loss=%s
+                   WHERE id=%s AND state='running'""",
+                (train_loss, validation_loss, job_id),
+            )
+
+    def finish_training_job(self, job_id: int, success: bool, checkpoint_path: str | None = None,
+                            error: str | None = None):
+        with self._connect() as db:
+            db.execute(
+                """UPDATE training_jobs SET state=%s,checkpoint_path=%s,error=%s,
+                   finished_at=NOW() WHERE id=%s AND state='running'""",
+                ("completed" if success else "failed", checkpoint_path, (error or "")[:500], job_id),
+            )
+
     def delete_user(self, user_id: int):
         with self._connect() as db:
-            for table, col in (("training_examples", "user_id"), ("web_sessions", "user_id"), ("users", "id"), ("active_quiz", "user_id"), ("history", "user_id"), ("ai_usage", "user_id")):
+            db.execute("""DELETE FROM training_metrics WHERE job_id IN
+                          (SELECT id FROM training_jobs WHERE user_id=%s)""", (user_id,))
+            for table, col in (("training_jobs", "user_id"), ("training_examples", "user_id"), ("web_sessions", "user_id"), ("users", "id"), ("active_quiz", "user_id"), ("history", "user_id"), ("ai_usage", "user_id")):
                 db.execute(f"DELETE FROM {table} WHERE {col}=%s", (user_id,))
