@@ -44,6 +44,7 @@ function go(view){
   $("page-title").textContent=PAGES[view];
   $("hero").classList.toggle("hidden",view!=="home");
   if(view==="progress")loadProgress();
+  if(view==="projects"){projectStatus();loadRepositories();}
   if(view==="datasets"){loadExamples();renderTrainingJobs();}
   if(view==="chat")loadHistory();
   window.scrollTo({top:0,behavior:"smooth"});
@@ -145,6 +146,162 @@ function renderCourses(){
     }
   }
 }
+const repoState={id:null,title:"",sha:null,path:"",folder:""};
+function bytesToBase64(bytes){
+  let parts=[];
+  for(let i=0;i<bytes.length;i+=8192)parts.push(String.fromCharCode(...bytes.subarray(i,i+8192)));
+  return btoa(parts.join(""));
+}
+async function projectStatus(){
+  const state=$("gitea-state");
+  try{
+    const info=await api("gitea/status");
+    state.textContent=info.configured?"Gitea مهيأ على الخادم":"يحتاج إعداد GITEA_OWNER وGITEA_API_TOKEN";
+  }catch(e){state.textContent=e.message;}
+}
+async function loadRepositories(){
+  try{
+    const data=await api("projects");
+    const root=$("repo-list");root.replaceChildren();
+    if(!data.projects.length){
+      root.append(mk("p","help-text","لم تُنشأ مستودعات مشاريع بعد. أنشئ مشروعك الأول محليًا."));
+      return;
+    }
+    for(const project of data.projects){
+      const button=mk("button","repo-row",project.title);
+      button.type="button";
+      button.append(mk("small","",SUBJECTS[project.kind]?.label||project.kind));
+      button.addEventListener("click",()=>openProject(project));
+      root.append(button);
+    }
+  }catch(e){toast(e.message);}
+}
+async function openProject(item){
+  repoState.id=item.id;repoState.title=item.title;repoState.folder="";
+  $("project-explorer").classList.remove("hidden");
+  $("explorer-title").textContent="ملفات "+item.title;
+  $("folder-path").value="";
+  resetEditor();
+  await browseProject("");
+  $("project-explorer").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function resetEditor(){
+  repoState.sha=null;
+  repoState.path="";
+  $("file-editor").value="";
+  $("editor-filepath").value="";
+  $("editor-revision").textContent="ملف جديد: لن يتم تعديل ملف موجود دون اختيار إصداره.";
+}
+async function browseProject(path){
+  if(repoState.id===null)return;
+  try{
+    const result=await api("projects/"+repoState.id+"/files?path="+encodeURIComponent(path));
+    repoState.folder=path;
+    $("folder-path").value=path;
+    const root=$("project-files");root.replaceChildren();
+    const parent=path.split("/").slice(0,-1).join("/");
+    if(path){
+      const back=mk("button","file-row","↰ المجلد الأعلى");
+      back.type="button";back.addEventListener("click",()=>browseProject(parent));
+      root.append(back);
+    }
+    for(const entry of result.files){
+      const file=mk("div","file-row");
+      const btn=mk("button","file-name",(entry.type==="dir"?"📁 ":"📄 ")+entry.name);
+      btn.type="button";
+      btn.addEventListener("click",()=>entry.type==="dir"?browseProject(entry.path):loadProjectFile(entry.path));
+      file.append(btn);
+      if(entry.type==="file"){
+        const dl=mk("button","file-download","تنزيل");
+        dl.addEventListener("click",()=>downloadFile(entry.path));file.append(dl);
+      }
+      root.append(file);
+    }
+    if(!result.files.length)root.append(mk("p","help-text","هذا المجلد فارغ."));
+  }catch(e){toast("تعذر استعراض المجلد: "+e.message);}
+}
+async function loadProjectFile(path){
+  try{
+    const result=await api("projects/"+repoState.id+"/file?path="+encodeURIComponent(path));
+    repoState.sha=result.sha;repoState.path=path;
+    $("editor-filepath").value=path;
+    $("file-editor").value=result.content;
+    $("editor-revision").textContent="إصدار SHA: "+result.sha+" • أي تعارض يتطلب إعادة تحميل الملف.";
+    $("file-editor").focus();
+  }catch(e){toast(e.message+" يمكن تنزيل الملفات الثنائية من قائمة الملفات.")}
+}
+async function downloadFile(path){
+  try{
+    const response=await fetch("/api/projects/"+repoState.id+"/download?path="+encodeURIComponent(path),{credentials:"same-origin"});
+    if(!response.ok){const detail=await response.json();throw Error(detail.detail||"فشل التنزيل");}
+    const blob=await response.blob();
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    link.href=url;link.download=path.split("/").pop();link.click();
+    URL.revokeObjectURL(url);
+  }catch(e){toast(e.message)}
+}
+async function saveProjectFile(){
+  const path=$("editor-filepath").value.trim();
+  const content=$("file-editor").value;
+  if(!path){toast("اكتب مسار الملف");return}
+  if(repoState.path&&repoState.path!==path&&repoState.sha){
+    toast("لتغيير المسار اختر ملفًا جديدًا أو احتفظ بمسار الملف الحالي");return;
+  }
+  const btn=$("save-file");btn.disabled=true;
+  try{
+    const data=bytesToBase64(new TextEncoder().encode(content));
+    const result=await api("projects/"+repoState.id+"/file",{
+      method:"POST",body:JSON.stringify({path,content_base64:data,sha:repoState.sha,
+        message:(repoState.sha?"Update ":"Create ")+path})
+    });
+    toast("حُفظ الملف داخل Git Commit بنجاح");
+    repoState.sha=result.sha||null;repoState.path=path;
+    $("editor-revision").textContent="تم الحفظ؛ SHA: "+(result.sha||"قم بتحديث الملف");
+    await browseProject(path.includes("/")?path.split("/").slice(0,-1).join("/"):"");
+  }catch(e){toast("تعذر الحفظ: "+e.message);}
+  finally{btn.disabled=false}
+}
+async function deleteProjectFile(){
+  if(!repoState.sha||!repoState.path){toast("اختر ملفًا موجودًا قبل الحذف");return;}
+  if(!confirm("هل تريد حذف "+repoState.path+" في Git Commit جديد؟"))return;
+  try{
+    await api("projects/"+repoState.id+"/file",{method:"DELETE",
+      body:JSON.stringify({path:repoState.path,sha:repoState.sha,message:"Delete "+repoState.path})});
+    toast("حُذف الملف، ويمكن استعادته من سجل Git");
+    const folder=repoState.folder;resetEditor();await browseProject(folder);
+  }catch(e){toast(e.message)}
+}
+async function showProjectCommits(){
+  const list=$("commit-list");list.classList.remove("hidden");
+  try{
+    const r=await api("projects/"+repoState.id+"/commits");
+    list.replaceChildren();
+    for(const item of r.commits){
+      const commit=mk("div","commit-row",item.sha?.slice(0,10)+" · "+item.message);
+      list.append(commit);
+    }
+    if(!r.commits.length)list.append(mk("p","help-text","لا توجد إصدارات ظاهرة."));
+  }catch(e){toast(e.message)}
+}
+async function uploadProjectFile(event){
+  event.preventDefault();
+  if(repoState.id===null)return;
+  const file=$("upload-file").files?.[0],path=$("upload-path").value.trim();
+  if(!file||!path){toast("حدد ملفًا ومسارًا");return;}
+  if(file.size>2*1024*1024){toast("حجم الملف يتجاوز 2 ميغابايت");return;}
+  const btn=$("upload-btn");btn.disabled=true;
+  try{
+    const data=bytesToBase64(new Uint8Array(await file.arrayBuffer()));
+    await api("projects/"+repoState.id+"/file",{method:"POST",
+      body:JSON.stringify({path,content_base64:data,sha:null,message:"Upload "+path})});
+    toast("تم رفع الملف وإنشاء Git Commit");
+    $("file-upload-form").reset();
+    await browseProject(repoState.folder);
+  }catch(e){toast(e.message);}
+  finally{btn.disabled=false}
+}
+
 function renderProjects(projects){
   const root=$("projects-content");root.replaceChildren();
   for(const p of projects){
@@ -344,6 +501,25 @@ function initBindings(){
   $("clear-history").addEventListener("click",async()=>{if(!confirm("مسح المحادثة الحالية؟"))return;try{await api("history",{method:"DELETE"});$("messages").replaceChildren();chatPlaceholder();toast("تم مسح المحادثة");}catch(e){toast(e.message);}});
   $("new-quiz").addEventListener("click",startQuiz);
   $("ohm-form").addEventListener("submit",calculateOhm);
+  $("project-create-form").addEventListener("submit",async e=>{
+    e.preventDefault();const btn=$("project-create-btn");btn.disabled=true;
+    try{
+      const payload={title:$("project-title").value.trim(),kind:$("project-kind").value};
+      const project=await api("projects",{method:"POST",body:JSON.stringify(payload)});
+      toast("تم إنشاء مستودع Git خاص للمشروع");
+      $("project-create-form").reset();
+      await loadRepositories();await openProject(project);
+    }catch(err){toast(err.message)}finally{btn.disabled=false}
+  });
+  $("browse-folder").addEventListener("click",()=>browseProject($("folder-path").value.trim()));
+  $("explorer-back").addEventListener("click",()=>{
+    repoState.id=null;$("project-explorer").classList.add("hidden");loadRepositories();
+  });
+  $("show-commits").addEventListener("click",showProjectCommits);
+  $("save-file").addEventListener("click",saveProjectFile);
+  $("new-file").addEventListener("click",resetEditor);
+  $("delete-file").addEventListener("click",deleteProjectFile);
+  $("file-upload-form").addEventListener("submit",uploadProjectFile);
   $("site-search").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();findLocal(e.target.value);}});
   document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();$("site-search").focus();}});
   $("training-form").addEventListener("submit",startTraining);
