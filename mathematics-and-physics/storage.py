@@ -79,6 +79,8 @@ class Storage:
             )""")
             db.execute("""ALTER TABLE engineering_projects ADD COLUMN IF NOT EXISTS
                 deletion_state TEXT NOT NULL DEFAULT 'active'""")
+            db.execute("""ALTER TABLE engineering_projects
+                ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ""")
             db.execute("""CREATE INDEX IF NOT EXISTS engineering_projects_owner_idx
                 ON engineering_projects(user_id,id DESC)""")
             db.execute("""CREATE TABLE IF NOT EXISTS ai_usage (
@@ -405,7 +407,7 @@ class Storage:
     def list_engineering_projects(self, user_id: int):
         with self._connect() as db:
             return db.execute(
-                """SELECT id,title,kind,deletion_state,created_at FROM engineering_projects
+                """SELECT id,title,kind,deletion_state,archived_at,created_at FROM engineering_projects
                    WHERE user_id=%s ORDER BY id DESC LIMIT 100""",
                 (user_id,),
             ).fetchall()
@@ -413,9 +415,36 @@ class Storage:
     def engineering_project(self, user_id: int, project_id: int):
         with self._connect() as db:
             return db.execute(
-                """SELECT id,title,kind,repo_name,deletion_state,created_at FROM engineering_projects
+                """SELECT id,title,kind,repo_name,deletion_state,archived_at,created_at FROM engineering_projects
                    WHERE user_id=%s AND id=%s""",
                 (user_id, project_id),
+            ).fetchone()
+
+    def mark_project_archive_transition(self, user_id: int, project_id: int, archive: bool):
+        """Persistent state permits a retriable Gitea operation on timeout."""
+        origin = ("active", "archiving") if archive else ("archived", "restoring")
+        target = "archiving" if archive else "restoring"
+        with self._connect() as db:
+            row = db.execute(
+                """UPDATE engineering_projects SET deletion_state=%s
+                   WHERE user_id=%s AND id=%s AND deletion_state IN (%s,%s)
+                   RETURNING id,repo_name,deletion_state""",
+                (target, user_id, project_id, *origin),
+            ).fetchone()
+            return row
+
+    def finish_project_archive_transition(self, user_id: int, project_id: int,
+                                          archive: bool):
+        """Only finalize if it remains in the corresponding pending state."""
+        pending = "archiving" if archive else "restoring"
+        target = "archived" if archive else "active"
+        with self._connect() as db:
+            return db.execute(
+                """UPDATE engineering_projects SET deletion_state=%s,
+                   archived_at=CASE WHEN %s='archived' THEN NOW() ELSE NULL END
+                   WHERE user_id=%s AND id=%s AND deletion_state=%s
+                   RETURNING id,deletion_state,archived_at""",
+                (target, target, user_id, project_id, pending),
             ).fetchone()
 
     def begin_engineering_project_deletion(self, user_id: int, project_id: int):
@@ -423,7 +452,8 @@ class Storage:
         with self._connect() as db:
             return db.execute(
                 """UPDATE engineering_projects SET deletion_state='deleting'
-                   WHERE user_id=%s AND id=%s
+                   WHERE user_id=%s AND id=%s AND deletion_state
+                   IN ('active','archived','deleting')
                    RETURNING id,repo_name,deletion_state""",
                 (user_id, project_id),
             ).fetchone()
