@@ -93,3 +93,11 @@ footer{padding:20px 30px;color:#6783a2;font-size:11px;border-top:1px solid #2033
 .repo-delete{border:1px solid #935464;border-radius:8px;padding:8px 10px;color:#ffd1dc;background:#402337;text-align:center;font-size:12px}
 .repo-delete:hover{background:#613248}
 .repo-delete:disabled{opacity:.55}
+
+.explorer-search{border-top:1px solid #29415b;margin:18px 0;padding-top:15px}
+.explorer-search label{display:block;color:#a9c5dc;margin-bottom:9px}
+.explorer-search-fields{display:flex;gap:9px;align-items:center}
+.explorer-search-fields input{flex:1;min-width:0}
+#project-search-results{margin-top:10px}
+#project-search-results .file-name{display:block;width:100%;border-bottom:1px solid #28425b}
+#project-search-results .help-text{padding:10px}
