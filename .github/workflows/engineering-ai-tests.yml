@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - feature/from-scratch-engineering-ai
+      - feature/local-gitea-workspace
     paths:
       - 'mathematics-and-physics/**'
       - '.github/workflows/engineering-ai-tests.yml'
