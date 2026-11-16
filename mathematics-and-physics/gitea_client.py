@@ -166,6 +166,38 @@ class GiteaClient:
             self._repo_prefix(name) + "/contents/" + quote(path, safe="/"),
             json={"sha": sha, "message": message[:240], "branch": "main"})
 
+    async def search_paths(self, name: str, query: str, *, max_pages: int = 5) -> dict:
+        """Bounded filename/path discovery using Gitea's paginated recursive Git tree."""
+        validated_repo_name(name)
+        search = query.strip().casefold()
+        if not (2 <= len(search) <= 100):
+            raise ValueError("Search text must contain 2–100 characters")
+        matches = []
+        scanned = 0
+        complete = True
+        for page in range(1, max_pages + 1):
+            result = await self._call(
+                "GET", self._repo_prefix(name) + "/git/trees/main",
+                params={"recursive": "true", "page": page, "per_page": 100},
+            )
+            entries = result.get("tree", [])
+            if not isinstance(entries, list):
+                raise GiteaError(502, "Invalid Gitea tree response")
+            for item in entries:
+                path = item.get("path")
+                if (item.get("type") != "blob" or not isinstance(path, str)
+                        or len(path) > 500):
+                    continue
+                scanned += 1
+                if search in path.casefold():
+                    matches.append({"path": path, "size": item.get("size"),
+                                    "sha": item.get("sha"), "type": "file"})
+            if not result.get("truncated", False):
+                break
+            if page == max_pages:
+                complete = False
+        return {"matches": matches, "complete": complete, "scanned": scanned}
+
     async def commits(self, name: str) -> list[dict]:
         items = await self._call("GET", self._repo_prefix(name) + "/commits",
                                  params={"sha": "main", "limit": 20})
