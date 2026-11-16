@@ -34,7 +34,7 @@ def generate_from_checkpoint(checkpoint: Path, prompt: str, language: str):
 
 
 def run_file(path: Path, *, language: str | None = None,
-             stdin: str = "", timeout: int = 20):
+             stdin: str = "", timeout: int = 60):
     path = path.resolve(strict=True)
     if not path.is_file() or path.stat().st_size > MAX_CODE_BYTES:
         raise ValueError("Source file must exist and be at most 64 KiB")
@@ -45,7 +45,7 @@ def run_file(path: Path, *, language: str | None = None,
 
 
 def run_model(checkpoint: Path, prompt: str, language: str, *, stdin: str = "",
-              timeout: int = 20, fix_attempts: int = 0):
+              timeout: int = 60, fix_attempts: int = 0):
     if language not in RUNTIMES:
         raise ValueError("Language not registered")
     if type(fix_attempts) is not int or not 0 <= fix_attempts <= 2:
@@ -79,7 +79,7 @@ def main():
     parser.add_argument("--language", choices=sorted(RUNTIMES))
     parser.add_argument("--prompt")
     parser.add_argument("--stdin", default="")
-    parser.add_argument("--timeout", type=int, default=20)
+    parser.add_argument("--timeout", type=int, default=60)
     parser.add_argument("--fix-attempts", type=int, choices=(0, 1, 2), default=0)
     args = parser.parse_args()
     if args.languages:
