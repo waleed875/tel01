@@ -69,7 +69,7 @@ def train(data: Path, output: Path, steps: int, block_size: int, batch_size: int
             if metrics_file:
                 with metrics_file.open("a", encoding="utf-8") as fd:
                     fd.write(json.dumps({"step":step,"train_loss":float(loss.item()),
-                                         "validation_loss":float(vl.item())})+"\\n")
+                                         "validation_loss":float(vl.item())})+"\n")
             model.train()
 
     checkpoint = {"model": model.cpu().state_dict(), "config": asdict(config),
