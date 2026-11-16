@@ -129,7 +129,7 @@
         <section class="view hidden" id="view-progress">
           <div class="panel-head"><div><span class="overline">MY WORKSPACE</span><h2>التقدم والإعدادات</h2><p>إحصاءات إجاباتي في الاختبارات وبيانات جلسة المتصفح الحالية.</p></div></div>
           <div class="stats"><div class="stat"><span>إجمالي الأسئلة</span><strong id="attempted">—</strong></div><div class="stat"><span>إجابات صحيحة</span><strong id="correct">—</strong></div><div class="stat"><span>نسبة النجاح</span><strong id="accuracy">—</strong></div></div>
-          <div class="panel"><h3>الخصوصية والتحكم</h3><p>تخزن قاعدة PostgreSQL المحادثات ونتائج الاختبارات ومسودات التدريب المضافة في هذه الجلسة، ويمكن حذفها. لا توجد حسابات تسجيل دخول بعد؛ المشروع مخصص حاليًا للاستضافة المحلية فقط.</p><button type="button" id="delete-account" class="danger-btn">حذف بيانات هذه الجلسة</button></div>
+          <div class="panel"><h3>الخصوصية والتحكم</h3><p>تخزن قاعدة PostgreSQL المحادثات ونتائج الاختبارات ومسودات التدريب المضافة في هذه الجلسة، ويمكن حذف السجلات من PostgreSQL، لكن ملفات التدريب والنماذج المشتقة قد تبقى على قرص Docker حتى تنفيذ مهمة تنظيف مستقلة (Issue #5). لا توجد حسابات تسجيل دخول بعد؛ المشروع مخصص حاليًا للاستضافة المحلية فقط.</p><button type="button" id="delete-account" class="danger-btn">حذف سجلات الجلسة من PostgreSQL</button></div>
         </section>
       </main>
 
