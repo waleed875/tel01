@@ -13,6 +13,7 @@ import sys
 import time
 
 from storage import Storage
+from .eval_holdout import evaluate_heldout
 
 MODEL_ROOT = Path(os.environ.get("MODEL_ROOT", "/app/models"))
 POLL_SECONDS = 3
@@ -95,7 +96,8 @@ def run_job(storage: Storage, job: dict):
     checkpoint = folder / "checkpoint.pt"
     if not checkpoint.is_file() or checkpoint.stat().st_size == 0:
         raise RuntimeError("Training finished without a valid checkpoint file")
-    return str(checkpoint)
+    heldout_loss = evaluate_heldout(checkpoint, validation)
+    return str(checkpoint), heldout_loss
 
 
 def persist_metrics(storage: Storage, job_id: int, path: Path, offset: int, observed: set) -> int:
@@ -136,8 +138,9 @@ def main():
             continue
         job_id = job["id"]
         try:
-            checkpoint = run_job(storage, job)
-            storage.finish_training_job(job_id, True, checkpoint_path=checkpoint)
+            checkpoint, heldout_loss = run_job(storage, job)
+            storage.finish_training_job(job_id, True, checkpoint_path=checkpoint,
+                                        heldout_loss=heldout_loss)
             print(f"Training job {job_id}: completed", flush=True)
         except Exception as exc:
             storage.finish_training_job(job_id, False, error=str(exc))
