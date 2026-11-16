@@ -50,6 +50,7 @@ def main():
     if not token:
         raise RuntimeError("Gitea did not issue an API token")
     env = dict(os.environ)
+    env["PYTHONPATH"] = os.getcwd() + os.pathsep + env.get("PYTHONPATH", "")
     env.update({
         "GITEA_OWNER": "ci-engineer",
         "GITEA_API_TOKEN": token,
