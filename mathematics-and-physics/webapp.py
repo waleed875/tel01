@@ -21,6 +21,7 @@ from gitea_client import GiteaClient, GiteaError, MAX_FILE_BYTES, validate_path
 from auth import AuthStore, SESSION_SECONDS
 from vision import describe_image
 from site_builder import build_website
+from design_commit import build_proposal, commit_proposal
 from engine.vision_inference import LocalVisionClassifier
 from engine.multimodal_inference import ExperimentalVisualQA
 from engine.evaluate_web import inspect_frontend
@@ -84,6 +85,15 @@ class WebDesignRequest(BaseModel):
     description: str = Field(min_length=10, max_length=500)
     style: str = Field(default="professional")
     sections: list[str] = Field(min_length=1, max_length=4)
+
+
+class ReviewedWebDesignRequest(WebDesignRequest):
+    directory: str = Field(min_length=5, max_length=450)
+
+
+class ApprovedDesignRequest(ReviewedWebDesignRequest):
+    fingerprint: str = Field(min_length=75, max_length=90)
+    approved: bool = False
 
 
 class ChatRequest(BaseModel):
@@ -343,6 +353,44 @@ async def delete_project(project_id: int,
     if not database.finish_engineering_project_deletion(user, project_id):
         raise HTTPException(409, "تم حذف المستودع ولكن تعذر تنظيف ربط المشروع؛ أعد المحاولة.")
     return {"ok": True, "deleted_project_id": project_id}
+
+
+@app.post("/api/projects/{project_id}/design/preview")
+async def preview_site_proposal(
+        project_id: int, body: ReviewedWebDesignRequest,
+        user: Annotated[int, Depends(session_user)],
+        database: Annotated[Storage, Depends(db)]):
+    project = owned_project(database, user, project_id, write=True)
+    try:
+        config = body.model_dump()
+        result = await build_proposal(GiteaClient(), project["repo_name"],
+                                      user_id=user, project_id=project_id, config=config)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"files": [
+        {"path": item["path"], "operation": item["operation"],
+         "sha": item["sha"], "diff": item["diff"]}
+        for item in result["files"]],
+        "fingerprint": result["fingerprint"], "expires_at": result["expires_at"],
+        "can_apply": result["can_apply"],
+        "notice": "معاينة التعديلات فقط. لم يتم حفظ أي ملف في Gitea."}
+
+
+@app.post("/api/projects/{project_id}/design/apply")
+async def apply_approved_site_proposal(
+        project_id: int, body: ApprovedDesignRequest,
+        user: Annotated[int, Depends(session_user)],
+        database: Annotated[Storage, Depends(db)]):
+    if not body.approved:
+        raise HTTPException(409, "يلزم تأكيد الموافقة على التعديلات أولًا")
+    project = owned_project(database, user, project_id, write=True)
+    try:
+        config = body.model_dump(exclude={"fingerprint", "approved"})
+        return await commit_proposal(GiteaClient(), project["repo_name"],
+                                     user_id=user, project_id=project_id,
+                                     config=config, fingerprint=body.fingerprint)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.post("/api/projects/{project_id}/archive")

@@ -752,6 +752,93 @@ async function claimLegacy(){
 }
 
 let designedFiles=null;
+let reviewedDesign=null;
+let renderedDesignConfig=null;
+function designConfig(){
+  return {
+    title:$("web-design-title").value,
+    description:$("web-design-description").value,
+    style:$("web-design-style").value,
+    sections:Array.from(document.querySelectorAll('input[name="web-section"]:checked'),x=>x.value),
+    directory:$("design-project-directory").value.trim()
+  };
+}
+function invalidateDesignReview(){
+  reviewedDesign=null;
+  $("design-approve").disabled=true;
+  $("design-changes").replaceChildren();
+}
+async function loadDesignProjects(){
+  const picker=$("design-project-id");
+  const current=picker.value;
+  picker.replaceChildren();
+  const none=mk("option","","اختر مشروعًا محفوظًا");
+  none.value="";
+  picker.append(none);
+  try{
+    const data=await api("projects");
+    for(const project of data.projects){
+      if(project.deletion_state && project.deletion_state!=="active")continue;
+      if(project.kind!=="software" && project.kind!=="general")continue;
+      const option=mk("option","",project.title);
+      option.value=String(project.id);
+      picker.append(option);
+    }
+    if([...picker.options].some(x=>x.value===current))picker.value=current;
+  }catch(e){toast(e.message);}
+}
+async function reviewDesignChanges(){
+  invalidateDesignReview();
+  const current=designConfig();
+  const design={title:current.title,description:current.description,
+    style:current.style,sections:current.sections};
+  if(JSON.stringify(design)!==JSON.stringify(renderedDesignConfig)){
+    toast("تغير التصميم؛ اضغط إنشاء نموذج الموقع لمعاينة أحدث إصدار أولًا");return;
+  }
+  const projectId=Number($("design-project-id").value);
+  if(!Number.isSafeInteger(projectId)||projectId<=0){
+    toast("اختر مشروعًا من مشاريع البرمجيات أولًا");return;
+  }
+  const btn=$("design-review");btn.disabled=true;
+  try{
+    const config=designConfig();
+    const result=await api("projects/"+projectId+"/design/preview",{
+      method:"POST",body:JSON.stringify(config)});
+    const destination=$("design-changes");
+    destination.replaceChildren();
+    for(const file of result.files){
+      const pane=mk("section","design-change");
+      pane.append(mk("strong","",file.path+" • "+file.operation));
+      pane.append(mk("pre","design-diff",file.diff||"الملف مطابق — لا حاجة إلى حفظ"));
+      destination.append(pane);
+    }
+    destination.append(mk("p","help-text",result.notice));
+    reviewedDesign={projectId,config,fingerprint:result.fingerprint};
+    $("design-approve").disabled=!result.can_apply;
+  }catch(e){toast("تعذر مراجعة تغييرات التصميم: "+e.message);}
+  finally{btn.disabled=false}
+}
+async function approveDesignChanges(){
+  if(!reviewedDesign){toast("اعرض التغييرات أولًا");return;}
+  const reviewed=reviewedDesign;
+  const unchanged=Number($("design-project-id").value)===reviewed.projectId&&
+    JSON.stringify(designConfig())===JSON.stringify(reviewed.config);
+  if(!unchanged){invalidateDesignReview();toast("تغيّرت بيانات التصميم؛ أعد مراجعة الفروقات");return;}
+  if(!confirm("هل توافق على كتابة الملفات المعروضة داخل Gitea في Git Commit واحد؟"))return;
+  const btn=$("design-approve");btn.disabled=true;
+  try{
+    const result=await api("projects/"+reviewed.projectId+"/design/apply",{
+      method:"POST",body:JSON.stringify({
+        ...reviewed.config,fingerprint:reviewed.fingerprint,approved:true
+      })});
+    toast("تم حفظ "+result.changed_paths.length+" ملف في Git Commit واحد");
+    invalidateDesignReview();
+  }catch(e){
+    toast("تعذر الحفظ: "+e.message+"؛ أعد عرض الفروقات عند تعارض الملفات");
+    invalidateDesignReview();
+  }
+}
+
 function downloadGeneratedFile(name,content,type){
   const blob=new Blob([content],{type:type+";charset=utf-8"});
   const href=URL.createObjectURL(blob);
@@ -821,10 +908,13 @@ async function createWebDesign(event){
   if(!sections.length){toast("اختر قسمًا واحدًا على الأقل");return}
   button.disabled=true;
   try{
+    const config=designConfig();
     designedFiles=await api("design/scaffold",{method:"POST",body:JSON.stringify({
-      title:$("web-design-title").value,description:$("web-design-description").value,
-      style:$("web-design-style").value,sections
+      title:config.title,description:config.description,
+      style:config.style,sections:config.sections
     })});
+    renderedDesignConfig={title:config.title,description:config.description,
+      style:config.style,sections:config.sections};
     const html=designedFiles.files.find(f=>f.path==="index.html").content;
     const css=designedFiles.files.find(f=>f.path==="style.css").content;
     const inline=html.replace('<link rel="stylesheet" href="style.css">',"<style>"+css+"</style>");
@@ -836,6 +926,8 @@ async function createWebDesign(event){
       (quality?" • فحوص البنية والأمان: "+quality.passed+"/"+quality.total+
       " (لا تقيس جودة الذكاء الاصطناعي)":"");
     $("web-design-result").classList.remove("hidden");
+    invalidateDesignReview();
+    await loadDesignProjects();
   }catch(e){toast(e.message)}
   finally{button.disabled=false;}
 }
@@ -851,6 +943,16 @@ function initBindings(){
   $("vision-form").addEventListener("submit",analyzeVisionImage);
   $("visual-question-form").addEventListener("submit",askVisualModel);
   $("web-design-form").addEventListener("submit",createWebDesign);
+  $("design-review").addEventListener("click",reviewDesignChanges);
+  $("design-approve").addEventListener("click",approveDesignChanges);
+  $("design-project-id").addEventListener("change",invalidateDesignReview);
+  $("design-project-directory").addEventListener("input",invalidateDesignReview);
+  for(const id of ["web-design-title","web-design-description","web-design-style"]){
+    $(id).addEventListener("input",invalidateDesignReview);
+  }
+  for(const el of document.querySelectorAll('input[name="web-section"]')){
+    el.addEventListener("change",invalidateDesignReview);
+  }
   $("download-designed-html").addEventListener("click",()=>{
     const f=designedFiles?.files.find(x=>x.path==="index.html");
     if(f)downloadGeneratedFile(f.path,f.content,"text/html");

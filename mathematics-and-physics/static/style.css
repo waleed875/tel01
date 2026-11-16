@@ -136,3 +136,13 @@ footer{padding:20px 30px;color:#6783a2;font-size:11px;border-top:1px solid #2033
 #web-design-source{width:100%;font-family:Consolas,monospace;direction:ltr;text-align:left}
 #web-design-result label{display:block;margin:15px 0;color:var(--muted)}
 #vision-result p{margin:8px 0}
+
+.design-publish{margin:20px 0;padding:18px;border:1px solid var(--border);border-radius:14px;background:var(--surface2)}
+.design-publish h3{margin:0 0 9px}
+.design-changes{display:grid;gap:14px;margin:14px 0}
+.design-change{min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px}
+.design-change strong{display:block;direction:ltr;text-align:left;overflow-wrap:anywhere;font-size:13px;margin-bottom:10px}
+.design-diff{display:block;overflow:auto;max-height:320px;padding:12px;margin:0;white-space:pre;direction:ltr;text-align:left;font-size:12px;line-height:1.5;border-radius:8px;background:var(--bg);color:var(--text)}
+.design-publish label{min-width:0}
+.design-publish input,.design-publish select{width:100%}
+#design-approve{margin-top:7px}
