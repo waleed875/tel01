@@ -64,6 +64,25 @@ class FakeStorage:
         return {"draft": sum(e["status"] == "draft" for e in self.examples),
                 "approved": sum(e["status"] == "approved" for e in self.examples)}
 
+    def create_training_job(self, uid, steps, seed):
+        if sum(row["status"] == "approved" for row in self.examples) < 12:
+            raise ValueError("At least 12 approved examples are required")
+        self.job = {
+            "id": 1, "state": "queued", "steps": steps, "seed": seed,
+            "training_count": 10, "validation_count": 2,
+            "snapshot_sha256": "0123456789abcdef",
+        }
+        return self.job
+
+    def list_training_jobs(self, uid):
+        return [self.job] if hasattr(self, "job") else []
+
+    def training_job(self, uid, job_id):
+        return self.job if hasattr(self, "job") and job_id == self.job["id"] else None
+
+    def training_job_metrics(self, uid, job_id):
+        return [{"step": 1, "train_loss": 3.2, "validation_loss": 3.3}]
+
     def delete_training_example(self, uid, example_id):
         original_len = len(self.examples)
         self.examples = [e for e in self.examples if e["id"] != example_id]
@@ -92,6 +111,31 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(set(response.json()["curriculum"]),
                          {"math", "physics", "electronics", "software"})
         self.assertEqual(client.get("/static/app.js").status_code, 200)
+
+    def test_training_jobs_require_reviewed_examples(self):
+        fake = FakeStorage()
+        app.dependency_overrides[session_user] = lambda: -44
+        app.dependency_overrides[db] = lambda: fake
+        try:
+            client = TestClient(app)
+            start = client.post("/api/training/jobs", json={"steps": 50, "seed": 42})
+            self.assertEqual(start.status_code, 422)
+            for i in range(12):
+                fake.add_training_example(-44, "math",
+                    f"سؤال رياضيات معتمد {i}", f"إجابة شرح علمي متحقق من الحسابات {i}")
+                fake.review_training_example(-44, i+1, "approved")
+            self.assertEqual(client.post("/api/training/jobs",
+                            json={"steps": 0, "seed": 42}).status_code, 422)
+            response = client.post("/api/training/jobs", json={"steps": 50, "seed": 42})
+            self.assertEqual(response.status_code, 202, response.text)
+            self.assertEqual(response.json()["id"], 1)
+            self.assertEqual(len(client.get("/api/training/jobs").json()["jobs"]), 1)
+            detail = client.get("/api/training/jobs/1")
+            self.assertEqual(detail.status_code, 200)
+            self.assertEqual(detail.json()["metrics"][0]["step"], 1)
+            self.assertEqual(client.get("/api/training/jobs/2222").status_code, 404)
+        finally:
+            app.dependency_overrides.clear()
 
     def test_training_drafts_are_not_automatic_training(self):
         fake = FakeStorage()
