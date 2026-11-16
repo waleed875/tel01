@@ -30,6 +30,19 @@ class FakeStorage:
         return next((p for p in self.projects if p["user_id"] == user_id and p["id"] == project_id), None)
 
 
+    def begin_engineering_project_deletion(self, user_id, project_id):
+        project = self.engineering_project(user_id, project_id)
+        if project:
+            project["deletion_state"] = "deleting"
+        return project
+
+    def finish_engineering_project_deletion(self, user_id, project_id):
+        project = self.engineering_project(user_id, project_id)
+        if project and project.get("deletion_state") == "deleting":
+            self.projects.remove(project)
+            return True
+        return False
+
 class GiteaValidationTests(unittest.TestCase):
     def test_rejects_traversal_absolute_and_git_paths(self):
         for item in ("../etc/passwd", "src/../secret", "/etc/shadow",
@@ -119,6 +132,37 @@ class ProjectAPIIntegrationTests(unittest.TestCase):
             self.assertEqual(rejected.status_code, 422)
             missing = self.client.get("/api/projects/100/file?path=src/main.py")
             self.assertEqual(missing.status_code, 404)
+
+    def test_delete_project_removes_remote_before_mapping(self):
+        self.storage.create_engineering_project(22, "Circuit", "electronics",
+                                                "engineering-test-project")
+        with patch.object(GiteaClient, "delete_repo", new_callable=AsyncMock) as remote:
+            response = self.client.delete("/api/projects/1")
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(remote.await_count, 1)
+        self.assertEqual(self.client.get("/api/projects").json()["projects"], [])
+
+    def test_delete_failure_preserves_mapping_for_retry(self):
+        self.storage.create_engineering_project(22, "PCB", "electronics",
+                                                "engineering-test-project")
+        with patch.object(GiteaClient, "delete_repo", new_callable=AsyncMock) as remote:
+            remote.side_effect = GiteaError(503, "Gitea unavailable")
+            response = self.client.delete("/api/projects/1")
+            self.assertEqual(response.status_code, 503)
+            projects = self.client.get("/api/projects").json()["projects"]
+            self.assertEqual(len(projects), 1)
+            self.assertEqual(projects[0].get("deletion_state"), "deleting")
+            remote.side_effect = GiteaError(404, "Already absent")
+            self.assertEqual(self.client.delete("/api/projects/1").status_code, 200)
+            self.assertEqual(self.client.get("/api/projects").json()["projects"], [])
+
+    def test_other_user_cannot_delete_project(self):
+        self.storage.create_engineering_project(22, "Private", "software", "engineering-test")
+        app.dependency_overrides[session_user] = lambda: 99
+        with patch.object(GiteaClient, "delete_repo", new_callable=AsyncMock) as remote:
+            self.assertEqual(self.client.delete("/api/projects/1").status_code, 404)
+            remote.assert_not_awaited()
+        self.assertEqual(len(self.storage.projects), 1)
 
     def test_binary_files_not_treated_as_editable_text(self):
         self.storage.create_engineering_project(22, "PCB", "electronics", "engineering-xyz")
