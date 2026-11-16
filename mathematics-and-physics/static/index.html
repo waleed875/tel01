@@ -10,6 +10,27 @@
   <script defer src="/static/app.js"></script>
 </head>
 <body>
+<div id="auth-gate" class="auth-gate">
+  <div class="auth-card" role="dialog" aria-labelledby="auth-title" aria-modal="true">
+    <div class="brand-symbol auth-mark">◈</div>
+    <div class="overline">LOCAL ENGINEERING WORKSPACE</div>
+    <h1 id="auth-title">تسجيل الدخول</h1>
+    <p>يجب تسجيل الدخول إلى حساب محلي موثّق قبل الوصول إلى المشاريع والتدريب وملفات Gitea.</p>
+    <form id="auth-form" class="auth-form">
+      <label>اسم المستخدم<input id="auth-username" autocomplete="username" minlength="3" maxlength="40" required></label>
+      <label>كلمة المرور<input id="auth-password" type="password" autocomplete="current-password" required></label>
+      <button type="submit" class="primary-btn" id="auth-submit">دخول آمن</button>
+    </form>
+    <p class="help-text">لإنشاء المدير الأول: <code>docker compose exec web python -m auth bootstrap</code>. لا يوجد تسجيل حسابات عام.</p>
+    <p id="auth-error" class="auth-error" role="alert"></p>
+  </div>
+</div>
+<div id="legacy-claim-banner" class="legacy-claim-banner hidden">
+  <strong>لديك بيانات جلسة قديمة</strong>
+  <span>يمكن نقل ملكيتها لهذا الحساب مرة واحدة، بعد موافقتك.</span>
+  <button type="button" id="claim-legacy" class="ghost-btn">نقل البيانات</button>
+  <button type="button" id="dismiss-legacy" class="subtle-btn">لاحقًا</button>
+</div>
 <div class="app-shell">
   <aside class="sidebar">
     <div class="brand">
@@ -43,7 +64,7 @@
       <div class="search-wrap"><span aria-hidden="true">⌕</span><input id="site-search" aria-label="بحث في الدروس والمشاريع" placeholder="ابحث في الدروس والمشاريع..." autocomplete="off"><kbd>Ctrl K</kbd></div>
       <div class="toolbar">
         <button type="button" id="theme-toggle" class="icon-btn" title="تبديل المظهر" aria-label="تبديل المظهر">☾</button>
-        <span class="avatar" title="جلسة محلية" aria-label="جلسة متصفح محلية">◉</span>
+        <span class="avatar" id="logged-user" title="الحساب المحلي" aria-label="الحساب المحلي">◉</span><button type="button" id="logout-button" class="subtle-btn">تسجيل الخروج</button>
       </div>
     </header>
 
@@ -185,7 +206,7 @@
         <section class="view hidden" id="view-progress">
           <div class="panel-head"><div><span class="overline">MY WORKSPACE</span><h2>التقدم والإعدادات</h2><p>إحصاءات إجاباتي في الاختبارات وبيانات جلسة المتصفح الحالية.</p></div></div>
           <div class="stats"><div class="stat"><span>إجمالي الأسئلة</span><strong id="attempted">—</strong></div><div class="stat"><span>إجابات صحيحة</span><strong id="correct">—</strong></div><div class="stat"><span>نسبة النجاح</span><strong id="accuracy">—</strong></div></div>
-          <div class="panel"><h3>الخصوصية والتحكم</h3><p>تخزن قاعدة PostgreSQL المحادثات ونتائج الاختبارات ومسودات التدريب المضافة في هذه الجلسة، ويمكن حذف السجلات من PostgreSQL، لكن ملفات التدريب والنماذج المشتقة قد تبقى على قرص Docker حتى تنفيذ مهمة تنظيف مستقلة (Issue #5). لا توجد حسابات تسجيل دخول بعد؛ المشروع مخصص حاليًا للاستضافة المحلية فقط.</p><button type="button" id="delete-account" class="danger-btn">حذف سجلات الجلسة من PostgreSQL</button></div>
+          <div class="panel"><h3>الخصوصية والتحكم</h3><p>تخزن قاعدة PostgreSQL المحادثات ونتائج الاختبارات ومسودات التدريب المضافة في هذه الجلسة، ويمكن حذف السجلات من PostgreSQL، لكن ملفات التدريب والنماذج المشتقة قد تبقى على قرص Docker حتى تنفيذ مهمة تنظيف مستقلة (Issue #5). يستخدم التطبيق الآن حسابات محلية موثقة، ولا يُنصح بإتاحته عبر الإنترنت قبل مراجعة أمنية شاملة.</p><button type="button" id="delete-account" class="danger-btn">تسجيل الخروج من الحساب</button></div>
         </section>
       </main>
 
