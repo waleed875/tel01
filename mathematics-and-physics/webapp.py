@@ -156,7 +156,8 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Content-Security-Policy"] = (
+    if "Content-Security-Policy" not in response.headers:
+        response.headers["Content-Security-Policy"] = (
         "default-src 'self'; style-src 'self'; script-src 'self'; "
         "img-src 'self' data: blob:; frame-src 'self'; connect-src 'self'; object-src 'none'; "
         "base-uri 'none'; frame-ancestors 'none'"
