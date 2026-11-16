@@ -239,6 +239,18 @@ async def delete_project(project_id: int,
     return {"ok": True, "deleted_project_id": project_id}
 
 
+@app.get("/api/projects/{project_id}/search")
+async def search_project_files(project_id: int,
+                               user: Annotated[int, Depends(session_user)],
+                               database: Annotated[Storage, Depends(db)],
+                               query: str = Query(min_length=2, max_length=100)):
+    project = owned_project(database, user, project_id)
+    try:
+        return await GiteaClient().search_paths(project["repo_name"], query)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
 @app.get("/api/projects/{project_id}/files")
 async def project_files(project_id: int,
                         user: Annotated[int, Depends(session_user)],
