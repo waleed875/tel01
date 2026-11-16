@@ -168,11 +168,27 @@ async function loadRepositories(){
       return;
     }
     for(const project of data.projects){
+      const box=mk("div","repo-card");
+      const pending=project.deletion_state==="deleting";
       const button=mk("button","repo-row",project.title);
-      button.type="button";
-      button.append(mk("small","",SUBJECTS[project.kind]?.label||project.kind));
+      button.type="button";button.disabled=pending;
+      button.append(mk("small","",pending?"حذف غير مكتمل":(SUBJECTS[project.kind]?.label||project.kind)));
       button.addEventListener("click",()=>openProject(project));
-      root.append(button);
+      const remove=mk("button","repo-delete",pending?"إعادة محاولة الحذف":"حذف المستودع");
+      remove.type="button";
+      remove.addEventListener("click",async()=>{
+        if(!confirm("سيتم حذف مستودع Git للمشروع «"+project.title+"» مع جميع ملفاته وتاريخه. هل تؤكد؟"))return;
+        remove.disabled=true;
+        try{
+          await api("projects/"+project.id,{method:"DELETE"});
+          toast("تم حذف المستودع وسجل ربط المشروع");
+          if(repoState.id===project.id){
+            repoState.id=null;$("project-explorer").classList.add("hidden");
+          }
+        }catch(err){toast("لم يكتمل الحذف: "+err.message);}
+        finally{await loadRepositories();}
+      });
+      box.append(button,remove);root.append(box);
     }
   }catch(e){toast(e.message);}
 }
