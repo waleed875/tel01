@@ -177,6 +177,47 @@
 
         <section class="view hidden" id="view-tools">
           <div class="panel-head"><div><span class="overline">ENGINEERING TOOLS</span><h2>المختبر الهندسي</h2><p>أداة حساب حقيقية بقانون أوم؛ أدوات أخرى يمكن تطويرها لاحقًا.</p></div></div>
+          <section class="panel tool-panel">
+            <div class="form-heading"><h3>مختبر الرؤية المحلية (تجريبي)</h3><small>لا يوجد نموذج بصري مدرّب بعد</small></div>
+            <p>ارفع لقطة شاشة أو مخططًا بصيغة PNG/JPEG (حتى 2 ميغابايت). تحلل النسخة الأولى البكسلات والأبعاد والألوان، ولا تفهم محتوى الصورة أو تقرأ النصوص بعد.</p>
+            <form id="vision-form" class="field-grid">
+              <label>الصورة <input id="vision-image" type="file" accept="image/png,image/jpeg" required></label>
+              <button type="submit" class="ghost-btn" id="vision-button">تحليل خصائص الصورة محليًا</button>
+            </form>
+            <div id="vision-result" class="tool-result" aria-live="polite">لا توجد صورة محللة حتى الآن.</div>
+          </section>
+          <section class="panel tool-panel">
+            <div class="form-heading"><h3>مصمم واجهات الويب المحلي</h3><small>مولد قوالب متجاوبة — وليس ذكاءً مدربًا</small></div>
+            <p>أنشئ نقطة انطلاق بـHTML/CSS قابلة للتعديل. يمكنك معاينة الملفات وتنزيلها، ثم مراجعتها وإضافتها يدويًا إلى مشروعك في Gitea.</p>
+            <form id="web-design-form">
+              <div class="field-grid">
+                <label>اسم الموقع <input id="web-design-title" maxlength="90" minlength="3" value="منصة هندسية مبتكرة" required></label>
+                <label>المظهر <select id="web-design-style">
+                  <option value="professional">احترافي داكن</option>
+                  <option value="light">هادئ فاتح</option>
+                  <option value="emerald">زمردي تقني</option>
+                </select></label>
+              </div>
+              <label>وصف الموقع <textarea id="web-design-description" rows="3" minlength="10" maxlength="500" required>منصة عربية لاستعراض مشاريع البرمجيات والإلكترونيات والتقنيات الحديثة.</textarea></label>
+              <fieldset class="web-sections"><legend>الأقسام المطلوبة</legend>
+                <label><input type="checkbox" name="web-section" value="features" checked> المميزات</label>
+                <label><input type="checkbox" name="web-section" value="about" checked> من نحن</label>
+                <label><input type="checkbox" name="web-section" value="portfolio" checked> الأعمال</label>
+                <label><input type="checkbox" name="web-section" value="contact"> تواصل</label>
+              </fieldset>
+              <button type="submit" id="web-design-button" class="primary-btn">إنشاء نموذج الموقع</button>
+            </form>
+            <div id="web-design-result" class="hidden">
+              <p id="web-design-note" class="help-text"></p>
+              <div class="editor-buttons">
+                <button id="download-designed-html" type="button" class="ghost-btn">تنزيل index.html</button>
+                <button id="download-designed-css" type="button" class="ghost-btn">تنزيل style.css</button>
+              </div>
+              <iframe id="web-design-preview" class="web-design-preview" sandbox="" title="معاينة تصميم موقع محمي"></iframe>
+              <label>الكود المولد (HTML) <textarea id="web-design-source" rows="9" readonly spellcheck="false" dir="ltr"></textarea></label>
+              <small class="help-text">لا تُحفظ أي ملفات في Gitea تلقائيًا؛ يجب مراجعتها والموافقة على كل حفظ يدويًا.</small>
+            </div>
+          </section>
           <div class="panel tool-panel"><h3>حاسبة قانون أوم <span class="pill">فعّالة</span></h3><p>أدخل الجهد والمقاومة لحساب التيار والقدرة الكهربائية في دائرة مقاومة مثالية.</p>
             <form id="ohm-form" class="field-grid"><label>الجهد (V)<input type="number" id="voltage" step="any" value="12" required></label><label>المقاومة (Ω)<input type="number" id="resistance" step="any" min="0.000001" value="1000" required></label><button type="submit" class="primary-btn">احسب النتيجة</button></form>
             <div id="ohm-result" class="tool-result" aria-live="polite">I = V / R &nbsp; • &nbsp; P = V × I</div>
