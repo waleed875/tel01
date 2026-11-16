@@ -182,6 +182,8 @@ def owned_project(database: Storage, user: int, project_id: int):
     project = database.engineering_project(user, project_id)
     if project is None:
         raise HTTPException(404, "المشروع غير موجود أو لا تملك صلاحية الوصول")
+    if project.get("deletion_state", "active") != "active":
+        raise HTTPException(409, "المشروع بانتظار إكمال الحذف، ويمكن إعادة محاولة حذفه.")
     return project
 
 
@@ -216,6 +218,25 @@ async def create_project(body: ProjectRequest, user: Annotated[int, Depends(sess
         raise
     return {"id": item["id"], "title": item["title"],
             "kind": item["kind"], "created_at": item["created_at"]}
+
+
+@app.delete("/api/projects/{project_id}")
+async def delete_project(project_id: int,
+                         user: Annotated[int, Depends(session_user)],
+                         database: Annotated[Storage, Depends(db)]):
+    """Mark pending before remote deletion so an interrupted request is retryable."""
+    item = database.begin_engineering_project_deletion(user, project_id)
+    if not item:
+        raise HTTPException(404, "المشروع غير موجود أو لا تملك صلاحية الوصول")
+    try:
+        await GiteaClient().delete_repo(item["repo_name"])
+    except GiteaError as exc:
+        # The previous deletion attempt may have removed the remote repo already.
+        if exc.status != 404:
+            raise
+    if not database.finish_engineering_project_deletion(user, project_id):
+        raise HTTPException(409, "تم حذف المستودع ولكن تعذر تنظيف ربط المشروع؛ أعد المحاولة.")
+    return {"ok": True, "deleted_project_id": project_id}
 
 
 @app.get("/api/projects/{project_id}/files")
@@ -517,6 +538,9 @@ def answer(body: AnswerRequest, user: Annotated[int, Depends(session_user)],
 def delete_account(request: Request, response: Response,
                    user: Annotated[int, Depends(session_user)],
                    database: Annotated[Storage, Depends(db)]):
-    database.delete_user(user)
+    try:
+        database.delete_user(user)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
     response.delete_cookie(COOKIE, path="/")
     return {"ok": True}
