@@ -26,6 +26,17 @@ class Storage:
             db.execute("""CREATE INDEX IF NOT EXISTS history_user_id_id_idx ON history(user_id, id DESC)""")
             db.execute("""CREATE SEQUENCE IF NOT EXISTS web_user_ids START -1 INCREMENT -1 MINVALUE -9223372036854775808""")
             db.execute("""CREATE TABLE IF NOT EXISTS web_sessions (token_hash TEXT PRIMARY KEY, user_id BIGINT UNIQUE NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())""")
+            db.execute("""CREATE TABLE IF NOT EXISTS training_examples (
+                id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                subject TEXT NOT NULL,
+                question TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'draft',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )""")
+            db.execute("""CREATE INDEX IF NOT EXISTS training_examples_user_idx
+                ON training_examples(user_id, id DESC)""")
             db.execute("""CREATE TABLE IF NOT EXISTS ai_usage (
                 user_id BIGINT NOT NULL, day DATE NOT NULL, count INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY(user_id, day))""")
@@ -113,7 +124,44 @@ class Storage:
         with self._connect() as db:
             db.execute("UPDATE ai_usage SET count=GREATEST(0,count-1) WHERE user_id=%s AND day=%s", (user_id, today))
 
+
+    def training_examples(self, user_id: int, limit: int = 100):
+        with self._connect() as db:
+            return db.execute(
+                """SELECT id, subject, question, answer, status, created_at
+                   FROM training_examples WHERE user_id=%s ORDER BY id DESC LIMIT %s""",
+                (user_id, min(max(limit, 1), 250)),
+            ).fetchall()
+
+    def training_example_count(self, user_id: int):
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT COUNT(*) AS count FROM training_examples WHERE user_id=%s",
+                (user_id,),
+            ).fetchone()
+            return row["count"]
+
+    def add_training_example(self, user_id: int, subject: str, question: str, answer: str):
+        if subject not in VALID_SUBJECTS:
+            raise ValueError("Invalid subject")
+        self.ensure(user_id)
+        with self._connect() as db:
+            return db.execute(
+                """INSERT INTO training_examples(user_id, subject, question, answer)
+                   VALUES(%s, %s, %s, %s)
+                   RETURNING id, subject, question, answer, status, created_at""",
+                (user_id, subject, question, answer),
+            ).fetchone()
+
+    def delete_training_example(self, user_id: int, example_id: int) -> bool:
+        with self._connect() as db:
+            row = db.execute(
+                "DELETE FROM training_examples WHERE user_id=%s AND id=%s RETURNING id",
+                (user_id, example_id),
+            ).fetchone()
+            return row is not None
+
     def delete_user(self, user_id: int):
         with self._connect() as db:
-            for table, col in (("web_sessions", "user_id"), ("users", "id"), ("active_quiz", "user_id"), ("history", "user_id"), ("ai_usage", "user_id")):
+            for table, col in (("training_examples", "user_id"), ("web_sessions", "user_id"), ("users", "id"), ("active_quiz", "user_id"), ("history", "user_id"), ("ai_usage", "user_id")):
                 db.execute(f"DELETE FROM {table} WHERE {col}=%s", (user_id,))
