@@ -173,12 +173,14 @@ def auth_state(request: Request):
 
 
 @app.post("/api/auth/login")
-def login(body: LoginRequest, response: Response):
+def login(body: LoginRequest, response: Response, request: Request):
     if auth_store is None:
         raise HTTPException(503, "Authentication service is not initialized")
     result = auth_store.login(body.username, body.password)
     if result is None:
         raise HTTPException(401, "اسم المستخدم أو كلمة المرور غير صحيحة أو الحساب مقفل مؤقتًا")
+    # A successful login replaces any existing browser session to avoid replay.
+    auth_store.logout(request.cookies.get(COOKIE, ""))
     response.set_cookie(COOKIE, result["token"], httponly=True, samesite="strict",
                         secure=cookie_secure(), max_age=SESSION_SECONDS, path="/")
     return {"authenticated": True, "username": result["username"],
