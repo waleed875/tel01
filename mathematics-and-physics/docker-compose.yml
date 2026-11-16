@@ -15,13 +15,16 @@ services:
       retries: 15
     networks: [internal]
 
-  tutor:
+  web:
     build: .
     restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-tutor}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-engineering_tutor}
       MODEL_CHECKPOINT: /app/models/checkpoint.pt
+      COOKIE_SECURE: "false"
+    ports:
+      - "127.0.0.1:8000:8000"
     volumes:
       - trained_models:/app/models:ro
     depends_on:
