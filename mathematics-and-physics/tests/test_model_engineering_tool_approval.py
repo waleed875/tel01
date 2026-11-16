@@ -27,12 +27,12 @@ class ToolProposalTests(unittest.TestCase):
                 "engineering_calculators").calculate) as calculator:
             found = propose(proposed_text(), user_id=25)
             self.assertIsNotNone(found)
-            # Preliminary validation is read-only but never exposes result.
+            # Preview must never call the calculator; the token is review-only.
             self.assertEqual(found["operation"], "physics.force")
             self.assertNotIn("values", found)
             self.assertNotIn("force_n", found)
             self.assertEqual(found["label"], "قانون نيوتن الثاني")
-            self.assertEqual(calculator.call_count, 1)
+            self.assertEqual(calculator.call_count, 0)
             result = approved_calculate(
                 25, found["operation"], found["inputs"], found["token"])
             self.assertEqual(result["values"]["force_n"], 12)
