@@ -158,7 +158,7 @@ async def security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; style-src 'self'; script-src 'self'; "
-        "img-src 'self' data:; connect-src 'self'; object-src 'none'; "
+        "img-src 'self' data: blob:; frame-src 'self'; connect-src 'self'; object-src 'none'; "
         "base-uri 'none'; frame-ancestors 'none'"
     )
     return response
