@@ -52,7 +52,9 @@ jobs:
         env:
           POSTGRES_PASSWORD: ci-local-db-password
           GITEA_DB_PASSWORD: ci-local-gitea-password
-        run: docker compose config --quiet
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
 
   gitea-live:
     runs-on: ubuntu-latest
