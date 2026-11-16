@@ -41,7 +41,7 @@ def main():
     credential = base64.b64encode(f"ci-engineer:{password}".encode()).decode()
     request = Request(root + "/api/v1/users/ci-engineer/tokens",
                       data=json.dumps({"name": "ci-workspace-smoke",
-                                       "scopes": ["write:repository"]}).encode(),
+                                       "scopes": ["write:repository", "write:user"]}).encode(),
                       headers={"Authorization": "Basic " + credential,
                                "Content-Type": "application/json"},
                       method="POST")
