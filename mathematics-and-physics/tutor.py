@@ -2,15 +2,13 @@
 import asyncio
 import os
 from engine.inference import LocalModel
+from engineering_domains import DOMAINS, subject_prompt
 
 LEVEL_NAMES = {
     "beginner": "مبتدئ / ابتدائي", "intermediate": "متوسط",
     "highschool": "ثانوي", "university": "جامعي",
 }
-SUBJECT_NAMES = {
-    "math": "الرياضيات", "physics": "الفيزياء",
-    "software": "هندسة البرمجيات", "electronics": "هندسة الإلكترونيات",
-}
+SUBJECT_NAMES = {key: domain["label"] for key, domain in DOMAINS.items()}
 
 class Tutor:
     def __init__(self, checkpoint_path: str):
@@ -21,7 +19,7 @@ class Tutor:
                   history: list[dict], image_data_url: str | None = None) -> str:
         if image_data_url:
             return "النموذج التدريبي الحالي نصّي فقط."
-        prompt = f"المجال: {SUBJECT_NAMES[subject]}\nالمستوى: {LEVEL_NAMES[level]}\n{question}"
+        prompt = subject_prompt(subject, LEVEL_NAMES[level], question)
         # Run CPU inference off the event loop so Telegram remains responsive.
         return await asyncio.to_thread(self.local.answer, prompt)
 
