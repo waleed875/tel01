@@ -52,6 +52,18 @@ class FakeStorage:
         self.examples.insert(0, row)
         return row
 
+    def review_training_example(self, uid, example_id, action):
+        for row in self.examples:
+            if row["id"] == example_id:
+                row["status"] = action
+                row["reviewed_at"] = "2026-01-01T00:00:00Z" if action == "approved" else None
+                return row
+        return None
+
+    def training_counts(self, uid):
+        return {"draft": sum(e["status"] == "draft" for e in self.examples),
+                "approved": sum(e["status"] == "approved" for e in self.examples)}
+
     def delete_training_example(self, uid, example_id):
         original_len = len(self.examples)
         self.examples = [e for e in self.examples if e["id"] != example_id]
@@ -97,6 +109,15 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(len(examples["examples"]), 1)
             self.assertEqual(examples["examples"][0]["status"], "draft")
             example_id = saved.json()["id"]
+            self.assertEqual(client.get("/api/datasets/stats").json()["approved"], 0)
+            reviewed = client.patch(f"/api/datasets/{example_id}/review", json={"approved": True})
+            self.assertEqual(reviewed.status_code, 200)
+            self.assertEqual(reviewed.json()["status"], "approved")
+            self.assertEqual(client.get("/api/datasets/stats").json()["approved"], 1)
+            self.assertEqual(client.patch(f"/api/datasets/{example_id}/review",
+                                         json={"approved": False}).json()["status"], "draft")
+            self.assertEqual(client.patch("/api/datasets/9999/review",
+                                         json={"approved": True}).status_code, 404)
             self.assertEqual(client.delete(f"/api/datasets/{example_id}").status_code, 200)
             self.assertEqual(client.get("/api/datasets").json()["examples"], [])
             self.assertEqual(client.post("/api/datasets", json={
