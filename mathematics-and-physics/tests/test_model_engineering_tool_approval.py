@@ -124,7 +124,7 @@ class ChatToolProposalTests(unittest.TestCase):
     def test_chat_proposes_but_never_runs_calculator(self):
         fake_model = type("FakeModel", (), {})()
         fake_model.ask = AsyncMock(return_value=proposed_text())
-        with patch("webapp.model", fake_model), \\
+        with patch("webapp.model", fake_model), \
              patch("engineering_tool_proposals.calculate",
                    side_effect=AssertionError("Calculator ran during preview")):
             response = self.client.post("/api/chat", json={
