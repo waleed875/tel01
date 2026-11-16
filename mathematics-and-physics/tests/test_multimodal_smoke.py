@@ -10,6 +10,8 @@ from PIL import Image
 from engine.model import GPTConfig
 from engine.multimodal import MultimodalGPT
 from engine.train_multimodal import load_pairs, train_pairs
+from engine.multimodal_inference import ExperimentalVisualQA
+from io import BytesIO
 
 
 class MultimodalTests(unittest.TestCase):
@@ -50,6 +52,12 @@ class MultimodalTests(unittest.TestCase):
             self.assertEqual(state["training_images"], 6)
             self.assertGreater(result["holdout_loss"], 0)
             self.assertLess(result["holdout_loss"], 20)
+            classifier = ExperimentalVisualQA(str(output / "multimodal_checkpoint.pt"))
+            with BytesIO() as image_data:
+                Image.new("RGB", (64, 64), (60, 20, 15)).save(image_data, "PNG")
+                prediction = classifier.ask(image_data.getvalue(), "What is this?", max_new_tokens=2)
+            self.assertTrue(prediction["experimental"])
+            self.assertIn("answer", prediction)
             rows[1]["image"] = rows[0]["image"]
             (root / "pairs.jsonl").write_text(
                 "\n".join(json.dumps(row) for row in rows), encoding="utf-8")
