@@ -753,6 +753,7 @@ async function claimLegacy(){
 
 let designedFiles=null;
 let reviewedDesign=null;
+let renderedDesignConfig=null;
 function designConfig(){
   return {
     title:$("web-design-title").value,
@@ -788,6 +789,12 @@ async function loadDesignProjects(){
 }
 async function reviewDesignChanges(){
   invalidateDesignReview();
+  const current=designConfig();
+  const design={title:current.title,description:current.description,
+    style:current.style,sections:current.sections};
+  if(JSON.stringify(design)!==JSON.stringify(renderedDesignConfig)){
+    toast("تغير التصميم؛ اضغط إنشاء نموذج الموقع لمعاينة أحدث إصدار أولًا");return;
+  }
   const projectId=Number($("design-project-id").value);
   if(!Number.isSafeInteger(projectId)||projectId<=0){
     toast("اختر مشروعًا من مشاريع البرمجيات أولًا");return;
@@ -901,10 +908,13 @@ async function createWebDesign(event){
   if(!sections.length){toast("اختر قسمًا واحدًا على الأقل");return}
   button.disabled=true;
   try{
+    const config=designConfig();
     designedFiles=await api("design/scaffold",{method:"POST",body:JSON.stringify({
-      title:$("web-design-title").value,description:$("web-design-description").value,
-      style:$("web-design-style").value,sections
+      title:config.title,description:config.description,
+      style:config.style,sections:config.sections
     })});
+    renderedDesignConfig={title:config.title,description:config.description,
+      style:config.style,sections:config.sections};
     const html=designedFiles.files.find(f=>f.path==="index.html").content;
     const css=designedFiles.files.find(f=>f.path==="style.css").content;
     const inline=html.replace('<link rel="stylesheet" href="style.css">',"<style>"+css+"</style>");
