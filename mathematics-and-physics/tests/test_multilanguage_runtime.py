@@ -25,7 +25,7 @@ class RuntimeRegistryTests(unittest.TestCase):
             runner.execute("python", "x" * (runner.MAX_CODE_BYTES + 1))
         with self.assertRaises(ValueError):
             runner.execute("python", "print(1)", stdin="x" * (runner.MAX_INPUT_BYTES + 1))
-        for invalid in (0, 21, -1, True):
+        for invalid in (0, 61, -1, True):
             with self.subTest(timeout=invalid), self.assertRaises(ValueError):
                 runner.execute("python", "print(1)", timeout=invalid)
 
@@ -49,7 +49,7 @@ class RuntimeRegistryTests(unittest.TestCase):
         for flag in ("--pull=never", "--network=none", "--read-only",
                      "--cap-drop=ALL", "--security-opt=no-new-privileges",
                      "--ipc=none", "--pids-limit=64", "--memory=512m",
-                     "--memory-swap=512m", "--cpus=1", "--user=65534:65534"):
+                     "--memory-swap=512m", "--cpus=2", "--user=65534:65534"):
             self.assertIn(flag, command)
         self.assertTrue(observed["name"].startswith("lab-code-"))
 
@@ -60,7 +60,7 @@ class RuntimeRegistryTests(unittest.TestCase):
             with patch("code_runtime.cli.execute", return_value={"success": True}) as run:
                 result = cli.run_file(path)
                 self.assertEqual(result["success"], True)
-                run.assert_called_once_with("python", "print('safe')", "", timeout=20)
+                run.assert_called_once_with("python", "print('safe')", "", timeout=60)
             with self.assertRaises(ValueError):
                 cli.run_model(path.with_suffix(".pt"), "Create a function", "python")
 
