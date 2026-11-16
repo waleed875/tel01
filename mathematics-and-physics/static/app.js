@@ -197,6 +197,8 @@ async function openProject(item){
   $("project-explorer").classList.remove("hidden");
   $("explorer-title").textContent="ملفات "+item.title;
   $("folder-path").value="";
+  $("project-file-search").value="";
+  $("project-search-results").classList.add("hidden");
   resetEditor();
   await browseProject("");
   $("project-explorer").scrollIntoView({behavior:"smooth",block:"start"});
@@ -236,6 +238,27 @@ async function browseProject(path){
     if(!result.files.length)root.append(mk("p","help-text","هذا المجلد فارغ."));
   }catch(e){toast("تعذر استعراض المجلد: "+e.message);}
 }
+async function searchProjectFiles(){
+  if(repoState.id===null)return;
+  const q=$("project-file-search").value.trim();
+  if(q.length<2){toast("اكتب حرفين على الأقل للبحث");return;}
+  const root=$("project-search-results");
+  root.classList.remove("hidden");
+  root.replaceChildren(mk("p","help-text","جارٍ البحث في ملفات المستودع..."));
+  try{
+    const result=await api("projects/"+repoState.id+"/search?query="+encodeURIComponent(q));
+    root.replaceChildren();
+    const status=mk("p","help-text",result.matches.length+" نتيجة"+(result.complete?"":" • النتائج جزئية: البحث محدود بحجم المستودع"));
+    root.append(status);
+    for(const item of result.matches){
+      const row=mk("button","file-name", "📄 "+item.path);
+      row.type="button";
+      row.addEventListener("click",()=>loadProjectFile(item.path));
+      root.append(row);
+    }
+  }catch(e){root.replaceChildren(mk("p","help-text",e.message));}
+}
+
 async function loadProjectFile(path){
   try{
     const result=await api("projects/"+repoState.id+"/file?path="+encodeURIComponent(path));
@@ -532,6 +555,10 @@ function initBindings(){
     repoState.id=null;$("project-explorer").classList.add("hidden");loadRepositories();
   });
   $("show-commits").addEventListener("click",showProjectCommits);
+  $("search-project-files").addEventListener("click",searchProjectFiles);
+  $("project-file-search").addEventListener("keydown",ev=>{
+    if(ev.key==="Enter"){ev.preventDefault();searchProjectFiles();}
+  });
   $("save-file").addEventListener("click",saveProjectFile);
   $("new-file").addEventListener("click",resetEditor);
   $("delete-file").addEventListener("click",deleteProjectFile);
