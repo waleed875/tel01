@@ -7,7 +7,7 @@ const SUBJECTS = {
   electronics:{label:"هندسة الإلكترونيات",icon:"▣",note:"الدوائر والمتحكمات"}
 };
 const LEVELS={beginner:"مبتدئ",intermediate:"متوسط",highschool:"ثانوي",university:"جامعي"};
-const PAGES={home:"الرئيسية",chat:"المحادثة الهندسية",curriculum:"مسار التعلم",quiz:"التمارين والاختبارات",projects:"المشاريع العملية",tools:"المختبر والأدوات",datasets:"إدارة بيانات التدريب",progress:"التقدم والإعدادات"};
+const PAGES={home:"الرئيسية",chat:"المحادثة الهندسية",research:"متصفح أبحاث AI",curriculum:"مسار التعلم",quiz:"التمارين والاختبارات",projects:"المشاريع العملية",tools:"المختبر والأدوات",datasets:"إدارة بيانات التدريب",progress:"التقدم والإعدادات"};
 const appState={profile:null,catalog:null,model:null,loading:false,view:"home"};
 let csrfToken="";
 const mk = (tag,className,text) => {
@@ -649,6 +649,49 @@ async function startTraining(e){
   finally{btn.disabled=false;}
 }
 
+async function doResearch(event){
+  event.preventDefault();
+  const query=$("research-query").value.trim();
+  const button=$("research-search-button"),root=$("research-results");
+  if(!query)return;
+  button.disabled=true;
+  root.replaceChildren(mk("p","","جارٍ البحث عن مصادر عامة..."));
+  $("research-article").classList.add("hidden");
+  try{
+    const data=await api("research/search",{method:"POST",body:JSON.stringify({query})});
+    root.replaceChildren();
+    if(!data.results?.length)root.append(mk("p","help-text","لم يُعثر على نتائج. جرّب كلمات أخرى."));
+    for(const result of data.results||[]){
+      const card=mk("div","research-result");
+      card.append(mk("strong","",result.title||"موقع بدون عنوان"),
+                  mk("p","",result.snippet||"لا يوجد وصف مختصر"));
+      const open=mk("button","ghost-btn","قراءة الصفحة");
+      open.type="button";
+      open.addEventListener("click",()=>openResearchPage(result.url));
+      const external=mk("a","research-source-link","رابط المصدر");
+      external.href=result.url;
+      external.target="_blank";external.rel="noopener noreferrer";
+      external.referrerPolicy="no-referrer";
+      card.append(open,external);
+      root.append(card);
+    }
+  }catch(e){root.replaceChildren(mk("p","help-text","تعذّر البحث: "+e.message));}
+  finally{button.disabled=false;}
+}
+async function openResearchPage(url){
+  const panel=$("research-article");
+  panel.classList.remove("hidden");
+  $("research-page-title").textContent="جارٍ قراءة الصفحة...";
+  $("research-page-text").textContent="";
+  try{
+    const page=await api("research/read",{method:"POST",body:JSON.stringify({url})});
+    $("research-page-title").textContent=page.title||"نص الصفحة المستخلص";
+    $("research-page-text").textContent=page.text||"لم يُعثر على نص قابل للاستخراج.";
+    const link=$("research-page-link");
+    link.href=page.url;link.textContent=page.url;
+    panel.scrollIntoView({behavior:"smooth",block:"start"});
+  }catch(e){$("research-page-title").textContent="تعذر فتح الصفحة";$("research-page-text").textContent=e.message;}
+}
 async function sendChat(e){
   e.preventDefault();
   if(appState.loading)return;
@@ -936,6 +979,7 @@ function initBindings(){
   document.querySelectorAll("[data-go]").forEach(el=>el.addEventListener("click",()=>go(el.dataset.go)));
   $("level").addEventListener("change",e=>updateProfile({level:e.target.value}));
   $("chat-form").addEventListener("submit",sendChat);
+  $("research-form").addEventListener("submit",doResearch);
   $("question").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("chat-form").requestSubmit();}});
   $("clear-history").addEventListener("click",async()=>{if(!confirm("مسح المحادثة الحالية؟"))return;try{await api("history",{method:"DELETE"});$("messages").replaceChildren();chatPlaceholder();toast("تم مسح المحادثة");}catch(e){toast(e.message);}});
   $("new-quiz").addEventListener("click",startQuiz);
