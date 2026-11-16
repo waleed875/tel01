@@ -19,6 +19,11 @@ from storage import Storage
 from tutor import Tutor, LEVEL_NAMES, SUBJECT_NAMES
 from gitea_client import GiteaClient, GiteaError, MAX_FILE_BYTES, validate_path
 from auth import AuthStore, SESSION_SECONDS
+from vision import describe_image
+from site_builder import build_website
+from engine.vision_inference import LocalVisionClassifier
+from engine.multimodal_inference import ExperimentalVisualQA
+from engine.evaluate_web import inspect_frontend
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="Engineering AI Lab", docs_url=None, redoc_url=None)
@@ -63,6 +68,22 @@ class ProjectFileDelete(BaseModel):
 class Settings(BaseModel):
     subject: str
     level: str
+
+
+class ImageAnalyzeRequest(BaseModel):
+    image_base64: str = Field(min_length=12, max_length=2800000)
+
+
+class VisionQuestionRequest(BaseModel):
+    image_base64: str = Field(min_length=12, max_length=2800000)
+    question: str = Field(min_length=1, max_length=500)
+
+
+class WebDesignRequest(BaseModel):
+    title: str = Field(min_length=3, max_length=90)
+    description: str = Field(min_length=10, max_length=500)
+    style: str = Field(default="professional")
+    sections: list[str] = Field(min_length=1, max_length=4)
 
 
 class ChatRequest(BaseModel):
@@ -685,6 +706,78 @@ def delete_history(user: Annotated[int, Depends(session_user)],
                    database: Annotated[Storage, Depends(db)]):
     database.clear_history(user)
     return {"ok": True}
+
+
+@lru_cache(maxsize=2)
+def get_local_vision_classifier(path: str, modified_ns: int):
+    return LocalVisionClassifier(path)
+
+
+@app.post("/api/vision/analyze")
+def analyze_uploaded_image(body: ImageAnalyzeRequest,
+                           user: Annotated[int, Depends(session_user)]):
+    """Bounded non-semantic analysis; no uploaded bytes stored in Gitea or DB."""
+    try:
+        payload = base64.b64decode(body.image_base64, validate=True)
+        result = describe_image(payload)
+        checkpoint = Path(os.getenv(
+            "VISION_CHECKPOINT", "/app/models/vision/vision_checkpoint.pt"))
+        result["classifier_available"] = checkpoint.is_file()
+        if checkpoint.is_file():
+            try:
+                classifier = get_local_vision_classifier(
+                    str(checkpoint), checkpoint.stat().st_mtime_ns)
+                result["experimental_classification"] = classifier.classify(payload)
+            except (RuntimeError, ValueError, OSError, KeyError) as exc:
+                result["classifier_error"] = (
+                    "تعذر قراءة النموذج البصري المحلي. راجع ملف الأوزان والتدريب.")
+        return result
+    except (ValueError, binascii.Error) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@lru_cache(maxsize=2)
+def get_visual_qa_model(path: str, modified_ns: int):
+    return ExperimentalVisualQA(path)
+
+
+@app.post("/api/vision/ask")
+async def ask_about_uploaded_image(body: VisionQuestionRequest,
+                                   user: Annotated[int, Depends(session_user)]):
+    """Untrusted experiment only: accepts bytes but never writes projects."""
+    checkpoint = Path(os.getenv(
+        "MULTIMODAL_CHECKPOINT",
+        "/app/models/multimodal/multimodal_checkpoint.pt"))
+    if not checkpoint.is_file():
+        raise HTTPException(503, "النموذج البصري-اللغوي غير مدرب بعد. درّبه على أمثلة صورة وسؤال وإجابة.")
+    try:
+        data = base64.b64decode(body.image_base64, validate=True)
+        describe_image(data)
+        model_instance = get_visual_qa_model(
+            str(checkpoint), checkpoint.stat().st_mtime_ns)
+        return await asyncio.wait_for(
+            asyncio.to_thread(model_instance.ask, data, body.question),
+            timeout=90)
+    except (ValueError, binascii.Error) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except (OSError, RuntimeError, KeyError):
+        raise HTTPException(503, "تعذر تحميل أوزان النموذج البصري المحلي. تحقق من توافق الإصدار.")
+    except TimeoutError:
+        raise HTTPException(504, "انتهت مهلة توليد الإجابة البصرية التجريبية.")
+
+
+@app.post("/api/design/scaffold")
+def scaffold_web_design(body: WebDesignRequest,
+                        user: Annotated[int, Depends(session_user)]):
+    """Previewable, deterministic design; no Gitea commits or AI claims."""
+    try:
+        result = build_website(body.title, body.description, body.style, body.sections)
+        files = {item["path"]: item["content"] for item in result["files"]}
+        result["quality_checks"] = inspect_frontend(
+            files["index.html"], files["style.css"])
+        return result
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.post("/api/chat")

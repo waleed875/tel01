@@ -23,16 +23,20 @@ def docker(*args, capture=False):
 def seed_dump(name: str, table: str, output: Path):
     docker("run", "-d", "--name", name, "--network", "none",
            "-e", "POSTGRES_PASSWORD=test-temporary-only", "postgres:17-alpine")
-    for _ in range(40):
-        status = subprocess.run(["docker", "exec", name, "pg_isready",
-                                 "-U", "postgres", "-d", "postgres"],
-                                stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL)
-        if status.returncode == 0:
+    # Postgres temporarily starts a server during init before restarting it.
+    # A single pg_isready success can race with that shutdown.
+    stable = 0
+    for _ in range(90):
+        status = subprocess.run(
+            ["docker", "exec", name, "psql", "-U", "postgres",
+             "-d", "postgres", "-At", "-c", "SELECT 1"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        stable = stable + 1 if status.returncode == 0 and status.stdout.strip() == "1" else 0
+        if stable >= 3:
             break
         time.sleep(1)
     else:
-        raise RuntimeError("Disposable seeded PostgreSQL failed to start")
+        raise RuntimeError("Disposable seeded PostgreSQL did not become stably ready")
     docker("exec", name, "psql", "-U", "postgres", "-d", "postgres",
            "-c", f"CREATE TABLE {table} (id INTEGER PRIMARY KEY, note TEXT)")
     docker("exec", name, "psql", "-U", "postgres", "-d", "postgres",

@@ -36,16 +36,22 @@ def restore_database(container, volume, directory, dump):
            "-e", "POSTGRES_PASSWORD=" + password,
            "-v", volume + ":/var/lib/postgresql/data",
            "-v", str(directory) + ":/backup:ro", "postgres:17-alpine")
-    for attempt in range(50):
+    # PostgreSQL's image starts a temporary initialization server first.
+    # That server can pass pg_isready and then shut down before final launch.
+    # Require multiple successful SQL probes instead of a single readiness hit.
+    stable = 0
+    for attempt in range(90):
         result = subprocess.run(
-            ["docker", "exec", container, "pg_isready", "-U", "postgres", "-d", "postgres"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            ["docker", "exec", container, "psql", "-U", "postgres", "-d", "postgres",
+             "-At", "-c", "SELECT 1"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
         )
-        if result.returncode == 0:
+        stable = stable + 1 if result.returncode == 0 and result.stdout.strip() == "1" else 0
+        if stable >= 3:
             break
         time.sleep(1)
     else:
-        raise RuntimeError("Disposable PostgreSQL did not become ready")
+        raise RuntimeError("Disposable PostgreSQL did not become stably ready")
     docker("exec", container, "pg_restore", "--exit-on-error",
            "--no-owner", "--no-acl", "-U", "postgres",
            "-d", "postgres", "/backup/" + dump)
