@@ -28,7 +28,7 @@ def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14,
                            r=8, p=1, dklen=32)
-    return f"scrypt$16384$8$1${salt.hex()}${digest.hex()}".replace("\\", "")
+    return f"scrypt$16384$8$1${salt.hex()}${digest.hex()}"
 
 
 def verify_password(password: str, encoded: str) -> bool:
@@ -153,6 +153,72 @@ class AuthStore:
         with self.connect() as db:
             db.execute("DELETE FROM auth_sessions WHERE token_hash=%s", (token_hash(token),))
 
+    def create_user(self, username: str, password: str, *, role: str = "user") -> int:
+        username = username.strip().lower()
+        if not USERNAME.fullmatch(username) or role not in ("user", "admin"):
+            raise ValueError("Invalid local account")
+        digest = hash_password(password)
+        with self.connect() as db:
+            row = db.execute(
+                """INSERT INTO local_accounts(username,password_hash,role)
+                   VALUES(%s,%s,%s) RETURNING id""",
+                (username, digest, role),
+            ).fetchone()
+            return row["id"]
+
+    def claim_legacy(self, user_id: int, old_cookie: str) -> bool:
+        """One-time explicit migration. Caller must be authenticated.
+        
+        The legacy cookie is proof of possession. Never merge two populated
+        accounts, and never fabricate an anonymous session during migration.
+        """
+        if not isinstance(old_cookie, str) or not re.fullmatch("[0-9a-f]{64}", old_cookie):
+            return False
+        with self.connect() as db:
+            db.execute("SELECT pg_advisory_xact_lock(%s)", (user_id,))
+            legacy = db.execute(
+                """SELECT user_id FROM web_sessions WHERE token_hash=%s FOR UPDATE""",
+                (token_hash(old_cookie),),
+            ).fetchone()
+            if not legacy or legacy["user_id"] >= 0:
+                return False
+            old_id = legacy["user_id"]
+            # Disallow merging populated authenticated accounts or running jobs.
+            populated = [
+                ("engineering_projects", "user_id"), ("training_examples", "user_id"),
+                ("training_jobs", "user_id"), ("history", "user_id"),
+                ("active_quiz", "user_id"), ("active_models", "user_id"),
+                ("ai_usage", "user_id"),
+            ]
+            for table, column in populated:
+                if db.execute(
+                    f"SELECT 1 FROM {table} WHERE {column}=%s LIMIT 1",
+                    (user_id,),
+                ).fetchone():
+                    raise ValueError("Your account already has data; automatic merge is prohibited")
+            profile = db.execute(
+                """SELECT level,subject,correct,attempted,last_question FROM users
+                   WHERE id=%s FOR UPDATE""", (user_id,),
+            ).fetchone()
+            if profile and (profile["level"] != "intermediate" or profile["subject"] != "math"
+                            or profile["correct"] or profile["attempted"] or profile["last_question"]):
+                raise ValueError("Authenticated profile is not empty")
+            if db.execute(
+                """SELECT 1 FROM training_jobs WHERE user_id=%s
+                   AND state IN ('queued','running')""", (old_id,),
+            ).fetchone():
+                raise ValueError("Finish existing training jobs before importing legacy data")
+            db.execute("DELETE FROM users WHERE id=%s", (user_id,))
+            db.execute("UPDATE users SET id=%s WHERE id=%s", (user_id, old_id))
+            for table, column in populated:
+                db.execute(f"UPDATE {table} SET {column}=%s WHERE {column}=%s",
+                           (user_id, old_id))
+            # A new authenticated user might not have a historical profile.
+            db.execute("INSERT INTO users(id) VALUES(%s) ON CONFLICT DO NOTHING",
+                       (user_id,))
+            db.execute("DELETE FROM web_sessions WHERE user_id=%s", (old_id,))
+            return True
+
     def role(self, user_id: int) -> str | None:
         with self.connect() as db:
             row = db.execute("SELECT role FROM local_accounts WHERE id=%s", (user_id,)).fetchone()
@@ -167,8 +233,8 @@ DUMMY_PASSWORD_HASH = (
 
 
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] != "bootstrap":
-        raise SystemExit("Usage: python -m auth bootstrap")
+    if len(sys.argv) != 2 or sys.argv[1] not in ("bootstrap", "create-user"):
+        raise SystemExit("Usage: python -m auth bootstrap|create-user")
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise SystemExit("DATABASE_URL must be set inside the Docker container")
@@ -177,8 +243,12 @@ def main():
     confirmation = getpass.getpass("Repeat admin password: ")
     if password != confirmation:
         raise SystemExit("Password confirmation did not match")
-    user_id = AuthStore(database_url).bootstrap_admin(username, password)
-    print(f"Created the first local administrator (id={user_id}); credentials not printed.")
+    store = AuthStore(database_url)
+    if sys.argv[1] == "bootstrap":
+        user_id = store.bootstrap_admin(username, password)
+    else:
+        user_id = store.create_user(username, password)
+    print(f"Created local account (id={user_id}); credentials not printed.")
 
 
 if __name__ == "__main__":
