@@ -123,6 +123,13 @@ docker compose --profile train run --rm trainer python -m engine.train_multimoda
 ```
 
 The worker writes `multimodal_checkpoint.pt` and a holdout-loss metric.
+After training, open **المختبر والأدوات** and choose a PNG/JPEG image;
+the new **اسأل النموذج البصري التجريبي** form sends an image and short question
+to the locally trained multimodal checkpoint. The endpoint gives a raw
+generated answer plus a conspicuous experimental warning and makes no Gitea
+changes. The general engineering conversation still uses the existing
+text-only checkpoint.
+
 The standard chat API **does not use this checkpoint yet**. Held-out
 next-byte loss is not proof that it understands diagrams, objects,
 screenshot layouts, or accurately generates website designs.
