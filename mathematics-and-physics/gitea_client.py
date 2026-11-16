@@ -66,7 +66,7 @@ class GiteaClient:
         url = self.base_url + "/api/v1/" + endpoint
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(20.0),
-                                         follow_redirects=False) as client:
+                                         follow_redirects=False, trust_env=False) as client:
                 response = await client.request(
                     method, url, headers={
                         "Authorization": f"token {self.token}",
