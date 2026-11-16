@@ -1,6 +1,8 @@
 """Regression checks for the standalone dashboard and read-only catalog endpoints."""
 import json
 import unittest
+import tempfile
+from unittest.mock import patch
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -80,6 +82,19 @@ class FakeStorage:
     def training_job(self, uid, job_id):
         return self.job if hasattr(self, "job") and job_id == self.job["id"] else None
 
+    def completed_training_job_path(self, uid, job_id):
+        job = self.training_job(uid, job_id)
+        return job if job and job["state"] == "completed" else None
+
+    def activate_training_job(self, uid, job_id):
+        job = self.completed_training_job_path(uid, job_id)
+        if job:
+            self.active = job
+        return job
+
+    def active_training_job(self, uid):
+        return getattr(self, "active", None)
+
     def training_job_metrics(self, uid, job_id):
         return [{"step": 1, "train_loss": 3.2, "validation_loss": 3.3}]
 
@@ -134,6 +149,37 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(detail.status_code, 200)
             self.assertEqual(detail.json()["metrics"][0]["step"], 1)
             self.assertEqual(client.get("/api/training/jobs/2222").status_code, 404)
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_only_completed_owned_checkpoint_can_be_activated(self):
+        fake = FakeStorage()
+        fake.job = {"id": 7, "state": "queued", "steps": 50, "seed": 42,
+                    "checkpoint_path": None, "heldout_loss": None,
+                    "training_count": 12, "validation_count": 2,
+                    "snapshot_sha256": "ab" * 32}
+        app.dependency_overrides[session_user] = lambda: -44
+        app.dependency_overrides[db] = lambda: fake
+        try:
+            with tempfile.TemporaryDirectory() as temp, patch.dict("os.environ", {"MODEL_ROOT": temp}):
+                client = TestClient(app)
+                self.assertEqual(
+                    client.post("/api/training/jobs/7/activate").status_code, 409
+                )
+                folder = Path(temp) / "run-7"
+                folder.mkdir()
+                checkpoint = folder / "checkpoint.pt"
+                checkpoint.write_bytes(b"test-checkpoint-file")
+                fake.job["state"] = "completed"
+                fake.job["checkpoint_path"] = str(checkpoint)
+                fake.job["heldout_loss"] = 4.1
+                response = client.post("/api/training/jobs/7/activate")
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(response.json()["active_job_id"], 7)
+                state = client.get("/api/model/status")
+                self.assertEqual(state.status_code, 200)
+                self.assertEqual(state.json()["active_job_id"], 7)
+                self.assertTrue(state.json()["checkpoint_available"])
         finally:
             app.dependency_overrides.clear()
 
