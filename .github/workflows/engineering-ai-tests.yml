@@ -142,3 +142,56 @@ jobs:
       - name: Remove disposable research containers
         if: always()
         run: docker compose down --remove-orphans
+
+  multi-language-sandbox:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mathematics-and-physics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download operator-approved fixed-version runtimes for test use
+        run: |
+          docker pull python:3.12-alpine
+          docker pull node:22-alpine
+          docker pull gcc:14
+      - name: Verify Docker-isolated Python, JavaScript, C, C++ and resource cutoffs
+        run: PYTHONPATH=. python tests/multilanguage_live_smoke.py
+      - name: Verify no disposable run containers remain
+        if: always()
+        run: |
+          if docker ps -a --format '{{.Names}}' | grep -q '^lab-code-'; then
+            echo "ERROR: disposable code containers were not cleaned up"
+            docker ps -a --format '{{.Names}}' | grep '^lab-code-'
+            exit 1
+          fi
+
+  multi-language-extended:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mathematics-and-physics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pull fixed-version Go Rust Java Ruby and PHP images
+        run: |
+          docker pull golang:1.24-alpine
+          docker pull rust:1.86-alpine
+          docker pull eclipse-temurin:21-jdk-alpine
+          docker pull ruby:3.3-alpine
+          docker pull php:8.3-cli-alpine
+      - name: Execute remaining five languages inside local-only sandbox
+        run: PYTHONPATH=. python tests/multilanguage_extended_smoke.py
+      - name: Verify all disposable program containers cleaned
+        if: always()
+        run: |
+          if docker ps -a --format '{{.Names}}' | grep -q '^lab-code-'; then
+            docker ps -a --format '{{.Names}}' | grep '^lab-code-'
+            exit 1
+          fi
