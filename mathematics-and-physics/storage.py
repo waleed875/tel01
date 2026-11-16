@@ -284,6 +284,15 @@ class Storage:
                 (user_id, job_id),
             ).fetchall()
 
+    def fail_interrupted_training_jobs(self):
+        """A single training worker runs on this host; mark interrupted runs failed."""
+        with self._connect() as db:
+            db.execute(
+                """UPDATE training_jobs SET state='failed',
+                   error='Training worker restarted; retry with a new job',
+                   finished_at=NOW() WHERE state='running'"""
+            )
+
     def claim_training_job(self):
         """Single runner claims next queued job using row locking."""
         with self._connect() as db:
