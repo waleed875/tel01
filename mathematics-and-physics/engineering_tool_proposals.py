@@ -55,9 +55,8 @@ def propose(text: str, user_id: int):
             return None
         operation, inputs = parsed["operation"], parsed["inputs"]
         _validate(operation, inputs)
-        # Check numeric and other input assumptions using the same validator as
-        # final execution, but never present these preliminary values as a result.
-        calculate(operation, inputs)
+        # Preview checks only the exact operation and JSON input shape.
+        # Calculation and numerical validation happen AFTER owner approval.
     except (ValueError, TypeError, OverflowError):
         return None
     expires = int(time.time()) + _TTL
