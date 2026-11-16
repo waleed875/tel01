@@ -10,6 +10,16 @@ LEVEL_NAMES = {
 }
 SUBJECT_NAMES = {key: domain["label"] for key, domain in DOMAINS.items()}
 
+
+def build_engineering_prompt(level: str, subject: str, question: str) -> str:
+    """Use identical tool-proposal prompt in chat and offline quality evaluation."""
+    hint = (
+        "يمكن اقتراح التحقق بكتلة engineering-tool فيها JSON يحتوي "
+        "operation وinputs فقط؛ لا تنفذ العمليات بنفسك. السؤال: "
+    )
+    return subject_prompt(subject, LEVEL_NAMES[level], hint + question)
+
+
 class Tutor:
     def __init__(self, checkpoint_path: str):
         self.checkpoint_path = checkpoint_path
@@ -19,13 +29,8 @@ class Tutor:
                   history: list[dict], image_data_url: str | None = None) -> str:
         if image_data_url:
             return "النموذج التدريبي الحالي نصّي فقط."
-        # A small hint for evaluated model-generated tool suggestions.
         # Keep the USER question at the end; bytewise GPT retains prompt tail.
-        hint = (
-            "يمكن اقتراح التحقق بكتلة engineering-tool فيها JSON يحتوي "
-            "operation وinputs فقط؛ لا تنفذ العمليات بنفسك. السؤال: "
-        )
-        prompt = subject_prompt(subject, LEVEL_NAMES[level], hint + question)
+        prompt = build_engineering_prompt(level, subject, question)
         # Run CPU inference off the event loop so Telegram remains responsive.
         return await asyncio.to_thread(self.local.answer, prompt)
 
