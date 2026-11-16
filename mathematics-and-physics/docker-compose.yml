@@ -32,6 +32,20 @@ services:
         condition: service_healthy
     networks: [internal]
 
+  training-worker:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "engine.worker"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tutor}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-engineering_tutor}
+      MODEL_ROOT: /app/models
+    volumes:
+      - trained_models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
   trainer:
     build: .
     profiles: ["train"]
