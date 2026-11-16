@@ -41,6 +41,12 @@ class AuthPostgresTests(unittest.TestCase):
         fresh = self.auth.rotate_csrf(session["token"])
         self.assertTrue(self.auth.verify_csrf(session["token"], fresh))
         self.assertFalse(self.auth.verify_csrf(session["token"], session["csrf"]))
+        with self.auth.connect() as db:
+            db.execute("""UPDATE auth_sessions SET expires_at=NOW()-INTERVAL '1 second'
+                          WHERE token_hash=%s""",
+                       (__import__("hashlib").sha256(session["token"].encode()).hexdigest(),))
+        self.assertIsNone(self.auth.session(session["token"]))
+        self.assertFalse(self.auth.verify_csrf(session["token"], fresh))
         self.auth.logout(session["token"])
         self.assertIsNone(self.auth.session(session["token"]))
         for _ in range(6):
