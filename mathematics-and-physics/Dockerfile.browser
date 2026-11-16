@@ -1,0 +1,9 @@
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+RUN useradd --uid 10003 --create-home browser
+RUN pip install --no-cache-dir 'fastapi>=0.115,<1' 'uvicorn>=0.30,<1' 'aiohttp>=3.10,<4'
+COPY ai_browser.py /app/ai_browser.py
+USER browser
+EXPOSE 8085
+CMD ["uvicorn","ai_browser:app","--host","0.0.0.0","--port","8085","--workers","1"]

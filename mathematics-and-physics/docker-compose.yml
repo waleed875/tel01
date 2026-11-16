@@ -68,6 +68,7 @@ services:
       GITEA_INTERNAL_URL: http://gitea:3000
       GITEA_OWNER: ${GITEA_OWNER:-}
       GITEA_API_TOKEN: ${GITEA_API_TOKEN:-}
+      RESEARCH_SERVICE_URL: http://ai-browser:8085
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -75,7 +76,39 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks: [internal]
+    networks: [internal, research]
+
+  ai-browser:
+    build:
+      context: .
+      dockerfile: Dockerfile.browser
+    restart: unless-stopped
+    environment:
+      SEARXNG_URL: http://searxng:8080/search
+    depends_on: [searxng]
+    networks: [research]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    pids_limit: 96
+    mem_limit: 256m
+
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    restart: unless-stopped
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    networks: [research]
+    environment:
+      SEARXNG_BASE_URL: http://searxng:8080/
+      SEARXNG_BIND_ADDRESS: 0.0.0.0
+      SEARXNG_PORT: "8080"
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?Set SEARXNG_SECRET in .env}
+    security_opt:
+      - no-new-privileges:true
 
   training-worker:
     build: .
@@ -103,6 +136,9 @@ services:
 
 networks:
   internal:
+    driver: bridge
+    internal: true
+  research:
     driver: bridge
 
 volumes:

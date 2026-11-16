@@ -146,3 +146,17 @@ footer{padding:20px 30px;color:#6783a2;font-size:11px;border-top:1px solid #2033
 .design-publish label{min-width:0}
 .design-publish input,.design-publish select{width:100%}
 #design-approve{margin-top:7px}
+
+.research-results{display:grid;gap:14px;margin-top:22px}
+.research-result{border:1px solid var(--border);border-radius:14px;background:var(--surface2);padding:18px;min-width:0;overflow-wrap:anywhere}
+.research-result strong{display:block;font-size:15px;margin-bottom:8px}
+.research-result p{color:var(--muted);line-height:1.7}
+.research-result button{margin-left:12px}
+.research-source-link{display:inline-block;direction:ltr;text-decoration:underline;color:var(--cyan);max-width:100%}
+.research-article{margin:22px 0;border:1px solid var(--border);padding:18px;border-radius:14px;min-width:0}
+.research-article h3,.research-article a{overflow-wrap:anywhere}
+#research-page-text{font-family:inherit;white-space:pre-wrap;overflow-wrap:anywhere;direction:auto;text-align:start;line-height:1.8;max-height:550px;overflow:auto;padding:14px;background:var(--surface2);border-radius:9px}
+.research-optin{display:inline-flex;align-items:center;gap:7px;font-size:12px}
+.research-optin input{width:auto}
+.chat-citations{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chat-citations a{display:inline-block;color:var(--cyan);font-size:12px;text-decoration:underline;overflow-wrap:anywhere}
