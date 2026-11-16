@@ -78,6 +78,36 @@ class PostgresTests(unittest.TestCase):
         self.assertEqual(self.db.list_engineering_projects(self.uid), [])
 
 
+    def test_project_archive_state_transitions(self):
+        import secrets
+        name = "engineering-archive-" + secrets.token_hex(7)
+        row = self.db.create_engineering_project(
+            self.uid, "Archived physics circuit", "electronics", name)
+        project_id = row["id"]
+        try:
+            self.assertIsNone(self.db.mark_project_archive_transition(self.uid + 1, project_id, True))
+            transition = self.db.mark_project_archive_transition(self.uid, project_id, True)
+            self.assertEqual(transition["deletion_state"], "archiving")
+            self.assertEqual(
+                self.db.finish_project_archive_transition(self.uid, project_id, True)["deletion_state"],
+                "archived",
+            )
+            self.assertIsNotNone(self.db.engineering_project(self.uid, project_id)["archived_at"])
+            self.assertIsNone(self.db.mark_project_archive_transition(self.uid, project_id, True))
+            self.assertEqual(
+                self.db.mark_project_archive_transition(self.uid, project_id, False)["deletion_state"],
+                "restoring",
+            )
+            self.assertEqual(
+                self.db.finish_project_archive_transition(self.uid, project_id, False)["deletion_state"],
+                "active",
+            )
+            self.assertIsNone(self.db.engineering_project(self.uid, project_id)["archived_at"])
+        finally:
+            self.db.begin_engineering_project_deletion(self.uid, project_id)
+            self.db.finish_engineering_project_deletion(self.uid, project_id)
+
+
     def test_training_requires_approved_examples(self):
         for n in range(12):
             self.db.add_training_example(self.uid, "physics",
