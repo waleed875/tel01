@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -61,8 +62,9 @@ def _sandbox(task: dict, source: str, *, image: str = IMAGE) -> dict:
         for item in folder.iterdir():
             item.chmod(0o444)
         folder.chmod(0o555)
+        container_name = "lab-code-eval-" + secrets.token_hex(8)
         command = [
-            "docker", "run", "--rm", "--pull=never",
+            "docker", "run", "--rm", "--name", container_name, "--pull=never",
             "--network=none", "--read-only",
             "--cap-drop=ALL", "--security-opt=no-new-privileges",
             "--pids-limit=32", "--memory=128m", "--memory-swap=128m",
@@ -78,6 +80,11 @@ def _sandbox(task: dict, source: str, *, image: str = IMAGE) -> dict:
                 command, text=True, capture_output=True, timeout=RUN_SECONDS,
                 check=False)
         except subprocess.TimeoutExpired:
+            # Killing the docker CLI does not reliably kill the daemon-managed
+            # container. Explicitly remove only the uniquely named sandbox.
+            subprocess.run(["docker", "rm", "-f", container_name],
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=5, check=False)
             return {"passed": 0, "total": len(task["cases"]), "outcomes": [],
                     "error": "Sandbox timeout", "elapsed_s": RUN_SECONDS}
         except FileNotFoundError as exc:
