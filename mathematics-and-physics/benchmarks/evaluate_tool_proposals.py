@@ -79,7 +79,7 @@ def evaluate(mode, checkpoint=None, benchmark=DATASET):
         if path is None or not path.is_file():
             raise ValueError("Trusted locally trained checkpoint path is required")
         from engine.inference import LocalModel
-        model = LocalModel(str(path), max_tokens=320)
+        model = LocalModel(str(path), max_tokens=180)
         checkpoint_sha = hashlib.sha256(path.read_bytes()).hexdigest()
     tasks = []
     for case in suite["tasks"]:
