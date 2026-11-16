@@ -1,21 +1,24 @@
 @echo off
 cd /d "%~dp0"
-if not exist ".venv\Scripts\python.exe" (
-    py -3 -m venv .venv
-    if errorlevel 1 (
-        echo Python 3.11+ is required.
-        pause
-        exit /b 1
-    )
+where docker >nul 2>nul
+if errorlevel 1 (
+    echo Docker Desktop is required. Install it and retry.
+    pause
+    exit /b 1
 )
-".venv\Scripts\python.exe" -m pip install -r requirements.txt
-if not exist .env (
-    copy .env.example .env >nul
-    echo.
-    echo Edit .env with Telegram and OpenAI keys, then rerun.
-    notepad .env
+if not exist ".env" (
+    copy ".env.example" ".env" >nul
+    echo Set your Telegram token and PostgreSQL password in .env.
+    notepad ".env"
     pause
     exit /b 0
 )
-".venv\Scripts\python.exe" bot.py
+docker compose up --build -d
+if errorlevel 1 (
+    echo Docker Compose failed. Inspect configuration and logs.
+    pause
+    exit /b 1
+)
+docker compose ps
+echo Open your Telegram bot and send /start.
 pause
