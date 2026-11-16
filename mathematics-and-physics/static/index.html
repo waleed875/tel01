@@ -121,6 +121,19 @@
             </div>
             <div id="project-files" class="file-list"></div>
             <div id="commit-list" class="commit-list hidden"></div>
+            <section class="file-preview-panel" aria-label="معاينة الملفات">
+              <div class="form-heading"><h3>معاينة الملف</h3><button type="button" id="close-file-preview" class="subtle-btn">إغلاق المعاينة</button></div>
+              <p id="file-preview-description" class="help-text">حدد ملف صورة أو PDF أو Markdown لمعاينته.</p>
+              <div id="file-preview-content" class="preview-content" aria-live="polite"></div>
+            </section>
+            <div class="file-rename-panel">
+              <h3>نقل الملف أو إعادة تسميته</h3>
+              <div class="explorer-search-fields">
+                <input type="text" id="rename-destination" maxlength="500" placeholder="المسار الجديد: src/new-name.py" aria-label="المسار الجديد">
+                <button type="button" id="rename-file" class="ghost-btn">نقل بعملية Git واحدة</button>
+              </div>
+              <small class="help-text">اختر ملفًا أولًا. لن يُستبدل أي ملف موجود في الوجهة.</small>
+            </div>
             <div class="editor-panel">
               <h3>محرر ملفات المشروع</h3>
               <label>المسار النسبي للملف <input type="text" id="editor-filepath" placeholder="src/main.py أو diagrams/circuit.kicad_sch" maxlength="500"></label>
