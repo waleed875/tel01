@@ -782,6 +782,17 @@ async function analyzeVisionImage(event){
       palette.append(swatch);
     }
     result.append(palette,mk("p","help-text",info.notice));
+    if(info.experimental_classification){
+      const guess=info.experimental_classification;
+      result.append(mk("p","","تصنيف النموذج المحلي التجريبي: "+guess.label));
+      result.append(mk("p","help-text",
+        "درجة النموذج: "+(100*guess.model_score).toFixed(1)+
+        "% • دقة أمثلة التقييم المحجوزة: "+(100*guess.heldout_accuracy).toFixed(1)+
+        "% — هذه ليست ضمانًا للفهم أو صحة الإجابة."));
+    }else{
+      result.append(mk("p","help-text","المصنف البصري غير مدرّب أو غير متوفر بعد."));
+    }
+    if(info.classifier_error)result.append(mk("p","help-text",info.classifier_error));
   }catch(e){result.textContent=e.message}
   finally{button.disabled=false;}
 }
