@@ -220,6 +220,17 @@
               </div>
               <iframe id="web-design-preview" class="web-design-preview" sandbox="" title="معاينة تصميم موقع محمي"></iframe>
               <label>الكود المولد (HTML) <textarea id="web-design-source" rows="9" readonly spellcheck="false" dir="ltr"></textarea></label>
+              <section class="design-publish">
+                <h3>نشر التصميم في مشروع Gitea بعد المراجعة</h3>
+                <p class="help-text">اختر مشروعًا تملكه، ثم استعرض ملفات HTML/CSS والفروقات. لن يحدث أي حفظ قبل موافقتك الصريحة.</p>
+                <div class="field-grid">
+                  <label>مشروع البرمجيات <select id="design-project-id"><option value="">اختر مشروعًا...</option></select></label>
+                  <label>مجلد الموقع في المشروع <input id="design-project-directory" value="sites/new-website" maxlength="450" dir="ltr" required></label>
+                  <button id="design-review" type="button" class="ghost-btn">عرض الفروقات قبل الحفظ</button>
+                </div>
+                <div id="design-changes" class="design-changes" aria-live="polite"></div>
+                <button id="design-approve" type="button" class="primary-btn" disabled>أوافق على التغييرات — حفظ Git Commit واحد</button>
+              </section>
               <small class="help-text">لا تُحفظ أي ملفات في Gitea تلقائيًا؛ يجب مراجعتها والموافقة على كل حفظ يدويًا.</small>
             </div>
           </section>
