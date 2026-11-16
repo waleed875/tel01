@@ -108,7 +108,8 @@ class PatchVisionTrainTests(unittest.TestCase):
                 folder = root / label
                 folder.mkdir(parents=True)
                 for index in range(4):
-                    (folder / f"image-{index}.png").write_bytes(image_bytes(color))
+                    shifted = tuple(min(255, channel + index) for channel in color)
+                    (folder / f"image-{index}.png").write_bytes(image_bytes(shifted))
             output = Path(tmp) / "weights"
             metrics = train_vision(root, output, steps=2, width=16, depth=1, heads=4)
             self.assertEqual(metrics["heldout_count"], 2)
