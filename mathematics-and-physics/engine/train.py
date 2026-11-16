@@ -4,6 +4,7 @@ Run from project root: python -m engine.train --data datasets/engineering.txt
 Checkpoints are untrusted pickle files; only load checkpoints you created.
 """
 import argparse
+import json
 from dataclasses import asdict
 from pathlib import Path
 import random
@@ -22,7 +23,8 @@ def load_corpus(path: Path):
 
 
 def train(data: Path, output: Path, steps: int, block_size: int, batch_size: int,
-          layers: int, heads: int, dim: int, learning_rate: float, seed: int):
+          layers: int, heads: int, dim: int, learning_rate: float, seed: int,
+          metrics_file: Path | None = None):
     if min(steps, block_size, batch_size, layers, heads, dim) <= 0 or dim % heads:
         raise ValueError("Invalid training configuration")
     torch.manual_seed(seed)
@@ -47,6 +49,9 @@ def train(data: Path, output: Path, steps: int, block_size: int, batch_size: int
         return x.to(device), y.to(device)
 
     output.mkdir(parents=True, exist_ok=True)
+    if metrics_file:
+        metrics_file.parent.mkdir(parents=True, exist_ok=True)
+        metrics_file.write_text("", encoding="utf-8")
     for step in range(1, steps + 1):
         model.train()
         x, y = batch(train_tokens)
@@ -61,6 +66,10 @@ def train(data: Path, output: Path, steps: int, block_size: int, batch_size: int
                 vx, vy = batch(val_tokens)
                 _, vl = model(vx, vy)
             print(f"step={step}/{steps} train_loss={loss.item():.4f} val_loss={vl.item():.4f}", flush=True)
+            if metrics_file:
+                with metrics_file.open("a", encoding="utf-8") as fd:
+                    fd.write(json.dumps({"step":step,"train_loss":float(loss.item()),
+                                         "validation_loss":float(vl.item())})+"\\n")
             model.train()
 
     checkpoint = {"model": model.cpu().state_dict(), "config": asdict(config),
@@ -83,6 +92,7 @@ if __name__ == "__main__":
     parser.add_argument("--dim", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--metrics-file", type=Path, default=None)
     args = parser.parse_args()
     train(args.data, args.output, args.steps, args.block_size, args.batch_size,
-          args.layers, args.heads, args.dim, args.learning_rate, args.seed)
+          args.layers, args.heads, args.dim, args.learning_rate, args.seed, args.metrics_file)
