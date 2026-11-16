@@ -56,6 +56,11 @@ class Storage:
                 started_at TIMESTAMPTZ,
                 finished_at TIMESTAMPTZ
             )""")
+            db.execute("""ALTER TABLE training_jobs ADD COLUMN IF NOT EXISTS heldout_loss DOUBLE PRECISION""")
+            db.execute("""CREATE TABLE IF NOT EXISTS active_models (
+                user_id BIGINT PRIMARY KEY,
+                job_id BIGINT NOT NULL REFERENCES training_jobs(id)
+            )""")
             db.execute("""CREATE INDEX IF NOT EXISTS training_jobs_user_idx ON training_jobs(user_id,id DESC)""")
             db.execute("""CREATE TABLE IF NOT EXISTS training_metrics (
                 job_id BIGINT NOT NULL REFERENCES training_jobs(id) ON DELETE CASCADE,
@@ -260,7 +265,7 @@ class Storage:
         with self._connect() as db:
             return db.execute(
                 """SELECT id,state,steps,seed,training_count,validation_count,
-                   snapshot_sha256,train_loss,validation_loss,created_at,started_at,
+                   snapshot_sha256,train_loss,validation_loss,heldout_loss,created_at,started_at,
                    finished_at,error FROM training_jobs WHERE user_id=%s
                    ORDER BY id DESC LIMIT %s""",
                 (user_id, limit),
@@ -270,9 +275,36 @@ class Storage:
         with self._connect() as db:
             return db.execute(
                 """SELECT id,state,steps,seed,training_count,validation_count,
-                   snapshot_sha256,train_loss,validation_loss,created_at,started_at,
+                   snapshot_sha256,train_loss,validation_loss,heldout_loss,created_at,started_at,
                    finished_at,error FROM training_jobs WHERE user_id=%s AND id=%s""",
                 (user_id, job_id),
+            ).fetchone()
+
+    def activate_training_job(self, user_id: int, job_id: int):
+        """Select only a completed checkpoint belonging to the active session."""
+        with self._connect() as db:
+            row = db.execute(
+                """SELECT id,checkpoint_path,heldout_loss FROM training_jobs
+                   WHERE id=%s AND user_id=%s AND state='completed'
+                   AND checkpoint_path IS NOT NULL""",
+                (job_id, user_id),
+            ).fetchone()
+            if not row:
+                return None
+            db.execute(
+                """INSERT INTO active_models(user_id,job_id) VALUES(%s,%s)
+                   ON CONFLICT(user_id) DO UPDATE SET job_id=excluded.job_id""",
+                (user_id, job_id),
+            )
+            return row
+
+    def active_training_job(self, user_id: int):
+        with self._connect() as db:
+            return db.execute(
+                """SELECT j.id,j.checkpoint_path,j.heldout_loss
+                   FROM active_models a JOIN training_jobs j ON j.id=a.job_id
+                   WHERE a.user_id=%s AND j.user_id=%s AND j.state='completed'""",
+                (user_id, user_id),
             ).fetchone()
 
     def training_job_metrics(self, user_id: int, job_id: int):
@@ -327,17 +359,18 @@ class Storage:
             )
 
     def finish_training_job(self, job_id: int, success: bool, checkpoint_path: str | None = None,
-                            error: str | None = None):
+                            error: str | None = None, heldout_loss: float | None = None):
         with self._connect() as db:
             db.execute(
                 """UPDATE training_jobs SET state=%s,checkpoint_path=%s,error=%s,
-                   finished_at=NOW() WHERE id=%s AND state='running'""",
-                ("completed" if success else "failed", checkpoint_path, (error or "")[:500], job_id),
+                   heldout_loss=%s,finished_at=NOW() WHERE id=%s AND state='running'""",
+                ("completed" if success else "failed", checkpoint_path, (error or "")[:500],
+                 heldout_loss, job_id),
             )
 
     def delete_user(self, user_id: int):
         with self._connect() as db:
             db.execute("""DELETE FROM training_metrics WHERE job_id IN
                           (SELECT id FROM training_jobs WHERE user_id=%s)""", (user_id,))
-            for table, col in (("training_jobs", "user_id"), ("training_examples", "user_id"), ("web_sessions", "user_id"), ("users", "id"), ("active_quiz", "user_id"), ("history", "user_id"), ("ai_usage", "user_id")):
+            for table, col in (("active_models", "user_id"), ("training_jobs", "user_id"), ("training_examples", "user_id"), ("web_sessions", "user_id"), ("users", "id"), ("active_quiz", "user_id"), ("history", "user_id"), ("ai_usage", "user_id")):
                 db.execute(f"DELETE FROM {table} WHERE {col}=%s", (user_id,))
