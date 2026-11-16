@@ -2,12 +2,12 @@
 import json
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 from fastapi.testclient import TestClient
 
 from engineering_tool_proposals import propose, approved_calculate
-from webapp import app, session_user
+from webapp import app, session_user, db
 
 
 def proposed_text(operation="physics.force", inputs=None):
@@ -99,6 +99,55 @@ class ToolProposalTests(unittest.TestCase):
             result = approved_calculate(5, item["operation"], item["inputs"],
                                         item["token"])
         self.assertEqual(result["values"]["imports"], 0)
+
+
+class ChatToolProposalTests(unittest.TestCase):
+    def setUp(self):
+        class FakeStorage:
+            subject = "physics"
+            def active_training_job(self, user):
+                return None
+            def profile(self, user):
+                return {"subject": self.subject, "level": "intermediate"}
+            def recent_history(self, user, limit):
+                return []
+            def add_exchange(self, user, question, answer):
+                return None
+        self.storage = FakeStorage()
+        app.dependency_overrides[session_user] = lambda: 42
+        app.dependency_overrides[db] = lambda: self.storage
+        self.client = TestClient(app)
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+
+    def test_chat_proposes_but_never_runs_calculator(self):
+        fake_model = type("FakeModel", (), {})()
+        fake_model.ask = AsyncMock(return_value=proposed_text())
+        with patch("webapp.model", fake_model), \\
+             patch("engineering_tool_proposals.calculate",
+                   side_effect=AssertionError("Calculator ran during preview")):
+            response = self.client.post("/api/chat", json={
+                "question": "احسب قوة جسم 3 كغ بتسارع 4 م/ث²",
+                "use_research": False,
+            })
+        self.assertEqual(response.status_code, 200, response.text)
+        proposal = response.json()["tool_proposal"]
+        self.assertEqual(proposal["operation"], "physics.force")
+        self.assertIn("token", proposal)
+        self.assertNotIn("values", proposal)
+
+    def test_proposals_for_other_subjects_are_not_offered(self):
+        self.storage.subject = "math"
+        fake_model = type("FakeModel", (), {})()
+        fake_model.ask = AsyncMock(return_value=proposed_text())
+        with patch("webapp.model", fake_model):
+            response = self.client.post("/api/chat", json={
+                "question": "السؤال الرياضي",
+                "use_research": False,
+            })
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIsNone(response.json()["tool_proposal"])
 
 
 class ToolApprovalAPITests(unittest.TestCase):
