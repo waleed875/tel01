@@ -15,6 +15,7 @@ import time
 
 from storage import Storage
 from engineering_domains import DOMAINS, verify_examples, coverage
+from benchmarks.evaluate_domains import load_benchmark, verify_no_train_leakage
 from .eval_holdout import evaluate_heldout
 
 MODEL_ROOT = Path(os.environ.get("MODEL_ROOT", "/app/models"))
@@ -44,6 +45,7 @@ def split_examples(examples: list[dict], seed: int):
     if len(examples) < 12:
         raise ValueError("At least twelve approved examples are required")
     verify_examples(examples)
+    verify_no_train_leakage(load_benchmark()["tasks"], examples)
     # Split WITHIN domains whenever the dataset contains enough distinct
     # questions. One-example subjects are train-only; coverage reveals gaps.
     train, validation = [], []
