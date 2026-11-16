@@ -53,7 +53,7 @@ def run_job(storage: Storage, job: dict):
     train, validation = split_examples(source, int(job["seed"]))
     training_data = serialize_training(train)
     # The initial byte tokenizer needs a minimum training corpus.
-    if len(training_data.encode("utf-8")) < 1280:
+    if len(training_data.encode("utf-8")) < 1800:
         raise ValueError("Not enough training data: please add longer approved examples")
     data_file = folder / "train.txt"
     data_file.write_text(training_data, encoding="utf-8")
@@ -127,6 +127,7 @@ def main():
         raise SystemExit("DATABASE_URL is required")
     MODEL_ROOT.mkdir(parents=True, exist_ok=True)
     storage = Storage(database)
+    storage.fail_interrupted_training_jobs()
     print("Training worker started; polling approved job snapshots", flush=True)
     while True:
         job = storage.claim_training_job()
