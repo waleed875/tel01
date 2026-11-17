@@ -244,6 +244,47 @@ class Storage:
                 (user_id, subject, question, answer),
             ).fetchone()
 
+    def import_starter_drafts(self, user_id: int, examples: list[dict]) -> dict:
+        """Idempotent per-account draft-only import, entirely transactional.
+
+        The caller validates the canonical pack. We recheck invariants before
+        acquiring an account-scoped lock and never change existing approvals.
+        """
+        from engineering_domains import fingerprint, verify_examples
+        from benchmarks.evaluate_domains import load_benchmark, verify_no_train_leakage
+        from benchmarks.evaluate_tool_proposals import load_suite
+        if len(examples) != 24:
+            raise ValueError("Invalid starter import size")
+        verify_examples(examples)
+        verify_no_train_leakage(load_benchmark()["tasks"], examples)
+        verify_no_train_leakage(load_suite()["tasks"], examples)
+        self.ensure(user_id)
+        with self._connect() as db:
+            db.execute("SELECT pg_advisory_xact_lock(%s)", (user_id,))
+            existing = db.execute(
+                "SELECT subject,question FROM training_examples WHERE user_id=%s",
+                (user_id,),
+            ).fetchall()
+            seen = {fingerprint(row["subject"], row["question"]) for row in existing}
+            inserted = 0
+            for row in examples:
+                if row["subject"] not in VALID_SUBJECTS or not isinstance(row["answer"], str):
+                    raise ValueError("Invalid starter example")
+                if not 8 <= len(row["question"]) <= 1800 or not 8 <= len(row["answer"]) <= 5000:
+                    raise ValueError("Invalid starter example length")
+                key = fingerprint(row["subject"], row["question"])
+                if key in seen:
+                    continue
+                db.execute(
+                    """INSERT INTO training_examples(user_id, subject, question, answer, status)
+                       VALUES(%s, %s, %s, %s, 'draft')""",
+                    (user_id, row["subject"], row["question"], row["answer"]),
+                )
+                seen.add(key)
+                inserted += 1
+            return {"inserted": inserted, "skipped": len(examples) - inserted,
+                    "total": len(examples), "status": "draft"}
+
     def delete_training_example(self, user_id: int, example_id: int) -> bool:
         with self._connect() as db:
             row = db.execute(
