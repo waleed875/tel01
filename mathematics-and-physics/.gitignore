@@ -10,3 +10,6 @@ models/
 *.pth
 checkpoints/
 local_backups/
+# Private owner-approved training exports and local model experiments
+approved-engineering.json
+experiments/
