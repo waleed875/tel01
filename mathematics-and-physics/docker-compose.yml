@@ -134,6 +134,18 @@ services:
       - ./datasets:/app/datasets:ro
     networks: [internal]
 
+  trainer-gpu:
+    build: .
+    profiles: ["gpu"]
+    entrypoint: ["python", "-m", "engine.train"]
+    command: ["--data", "/app/datasets/engineering.txt", "--output", "/app/models", "--device", "cuda"]
+    gpus: all
+    user: "0:0"
+    network_mode: none
+    volumes:
+      - trained_models:/app/models
+      - ./datasets:/app/datasets:ro
+
 networks:
   internal:
     driver: bridge
