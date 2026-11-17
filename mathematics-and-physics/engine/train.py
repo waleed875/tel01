@@ -80,12 +80,13 @@ def train(data: Path, output: Path, steps: int, block_size: int, batch_size: int
             raise ValueError("Trusted resume checkpoint not found")
         state = torch.load(resume, map_location=selected_device, weights_only=True)
         _check_resume(state, config, dataset_sha256)
-        if state.get("seed") != seed or state.get("learning_rate") != learning_rate:
-            raise ValueError("Resume seed or learning rate differs from original run")
+        if (state.get("seed") != seed or state.get("learning_rate") != learning_rate
+                or state.get("batch_size") != batch_size):
+            raise ValueError("Resume seed, batch size or learning rate differs from original run")
         model.load_state_dict(state["model"], strict=True)
         optimizer.load_state_dict(state["optimizer"])
         completed_steps = state["steps"]
-        torch.set_rng_state(state["torch_rng_state"].cpu())
+        if state.get("saved_device") != selected_device:\n            raise ValueError("Resume must use the same device type as the original run")\n        torch.set_rng_state(state["torch_rng_state"].cpu())
         if selected_device == "cuda":
             cuda_state = state.get("cuda_rng_state")
             if cuda_state is None:
@@ -137,7 +138,7 @@ def train(data: Path, output: Path, steps: int, block_size: int, batch_size: int
         "model": model.cpu().state_dict(), "config": asdict(config),
         "optimizer": optimizer.state_dict(), "steps": completed_steps + steps,
         "seed": seed, "dataset": str(data), "dataset_sha256": dataset_sha256,
-        "learning_rate": learning_rate, "saved_device": selected_device,
+        "learning_rate": learning_rate, "batch_size": batch_size, "saved_device": selected_device,
         "torch_rng_state": torch.get_rng_state(), "python_rng_state": random.getstate(),
         "cuda_rng_state": torch.cuda.get_rng_state().cpu() if selected_device == "cuda" else None,
     }
