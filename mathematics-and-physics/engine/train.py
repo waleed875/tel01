@@ -86,7 +86,9 @@ def train(data: Path, output: Path, steps: int, block_size: int, batch_size: int
         model.load_state_dict(state["model"], strict=True)
         optimizer.load_state_dict(state["optimizer"])
         completed_steps = state["steps"]
-        if state.get("saved_device") != selected_device:\n            raise ValueError("Resume must use the same device type as the original run")\n        torch.set_rng_state(state["torch_rng_state"].cpu())
+        if state.get("saved_device") != selected_device:
+            raise ValueError("Resume must use the same device type as the original run")
+        torch.set_rng_state(state["torch_rng_state"].cpu())
         if selected_device == "cuda":
             cuda_state = state.get("cuda_rng_state")
             if cuda_state is None:
