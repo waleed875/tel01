@@ -2,7 +2,7 @@
 from pathlib import Path
 import torch
 from .model import GPT, GPTConfig
-from .tokenizer import ByteTokenizer
+from .tokenizer import ByteTokenizer, tokenizer_from_spec
 
 
 class LocalModel:
@@ -18,8 +18,7 @@ class LocalModel:
         # Only load operator-created, trusted checkpoints. No external model weights.
         checkpoint = torch.load(self.path, map_location="cpu", weights_only=True)
         config = GPTConfig(**checkpoint["config"])
-        if config.vocab_size != 256:
-            raise ValueError("Unexpected tokenizer vocabulary")
+        self.tokenizer = tokenizer_from_spec(checkpoint.get("tokenizer_spec"), config.vocab_size)
         model = GPT(config)
         model.load_state_dict(checkpoint["model"], strict=True)
         model.eval()
