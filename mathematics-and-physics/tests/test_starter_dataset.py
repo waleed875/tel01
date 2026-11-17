@@ -3,6 +3,7 @@ import copy
 import os
 import unittest
 from collections import Counter
+from unittest.mock import patch
 
 from foundation_dataset import load_starter, validate_starter
 from engineering_domains import DOMAINS
@@ -45,8 +46,13 @@ class StarterPackUnitTests(unittest.TestCase):
         from fastapi.testclient import TestClient
         from webapp import app
         client = TestClient(app)
-        response = client.post("/api/datasets/starter/import")
-        self.assertIn(response.status_code, (401, 403))
+        # CI does not run app startup; emulate configured auth rejecting a
+        # request without a logged-in session, not an uninitialized server.
+        with patch("webapp.auth_store") as auth:
+            auth.verify_csrf.return_value = True
+            auth.session.return_value = None
+            response = client.post("/api/datasets/starter/import")
+        self.assertEqual(response.status_code, 401)
         # No training job is queued by the pack parser.
         self.assertEqual(set(load_starter()[0]), {"subject", "question", "answer"})
 
