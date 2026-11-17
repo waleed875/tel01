@@ -5,6 +5,7 @@ Run from mathematics-and-physics: python -m benchmarks.evaluate_tool_proposals
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from engineering_domains import DOMAINS, fingerprint
@@ -12,6 +13,9 @@ from engineering_tool_proposals import propose
 from tutor import build_engineering_prompt
 
 DATASET = Path(__file__).with_name("tool_proposals.json")
+# Match attempts at using the protocol even when their payload is invalid.
+# Do not mistake a rejected command for an intentional abstention.
+TOOL_ATTEMPT = re.compile(r"```[ \t]*engineering-tool\b", re.IGNORECASE)
 
 
 def load_suite(path=DATASET):
@@ -54,17 +58,18 @@ def format_reference(expected):
 def grade(case, model_output):
     expected = case["expected"]
     proposal = propose(model_output, user_id=0)
+    attempted = bool(TOOL_ATTEMPT.search(model_output)) if isinstance(model_output, str) else False
     correct_domain = proposal is not None and proposal["domain"] == case["subject"]
     valid = correct_domain
     if expected is None:
-        return {"passed": proposal is None, "protocol_valid": proposal is not None,
+        return {"passed": not attempted, "protocol_valid": False,
                 "operation_correct": False, "inputs_correct": False,
-                "abstained": proposal is None, "false_proposal": proposal is not None}
+                "abstained": not attempted, "false_proposal": attempted}
     operation_correct = correct_domain and proposal["operation"] == expected["operation"]
     inputs_correct = bool(operation_correct and proposal["inputs"] == expected["inputs"])
     return {"passed": inputs_correct, "protocol_valid": valid,
             "operation_correct": bool(operation_correct), "inputs_correct": inputs_correct,
-            "abstained": proposal is None, "false_proposal": False}
+            "abstained": not attempted, "false_proposal": False}
 
 
 def evaluate(mode, checkpoint=None, benchmark=DATASET):

@@ -43,6 +43,16 @@ class ProposalBenchmarkTests(unittest.TestCase):
         self.assertTrue(grade(case, format_reference({"operation":"electronics.ohm",
                           "inputs":{"voltage":10,"resistance":15}}))["false_proposal"])
 
+    def test_malformed_tool_attempt_is_not_abstention(self):
+        negative = next(x for x in load_suite()["tasks"] if x["id"] == "math_no_tool")
+        for model_output in ("```engineering-tool\\n{}\\n```",
+                             "```engineering-tool\\n{bad json}\\n```",
+                             "```engineering-tool\\n{\\\"operation\\\":\\\"shell\\\"}\\n```"):
+            result = grade(negative, model_output)
+            self.assertFalse(result["passed"])
+            self.assertTrue(result["false_proposal"])
+            self.assertFalse(result["abstained"])
+
     def test_same_prompt_as_chat_and_non_executing_reference(self):
         prompt = build_engineering_prompt("university", "physics", "ما محصلة القوة؟")
         self.assertIn("engineering-tool", prompt)

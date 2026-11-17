@@ -24,7 +24,7 @@ domains (2 applicable operations and 1 no-tool question per subject).
 `operation_correct` measures choosing the exact intended tool;
 `inputs_correct` requires exact JSON arguments; `passed` includes correct
 no-tool abstention. `false_proposals` counts unsafe-to-trust tool suggestions
-on questions where the benchmark expects no tool. Counts are raw, with
+on questions where the benchmark expects no tool, including attempted but malformed\n`engineering-tool` requests. A malformed request must not be mistaken for\ncorrect abstention. Training-worker snapshots reject exact normalized question\nmatches against both this benchmark and the four-domain reference benchmark. Counts are raw, with
 denominators `positive_total` and `negative_total`. No calculator is
 executed, including during the reference evaluation. Reports include the
 dataset and actual checkpoint SHA-256 for reproducibility, not chat messages.

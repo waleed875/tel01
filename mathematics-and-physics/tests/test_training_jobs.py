@@ -21,6 +21,23 @@ class TrainingPipelineTests(unittest.TestCase):
         self.assertEqual(len(a) + len(b), len(self.rows))
         self.assertGreaterEqual(len(b), 2)
 
+    def test_rejects_tool_benchmark_leakage_before_split(self):
+        from benchmarks.evaluate_tool_proposals import load_suite
+        from benchmarks.evaluate_domains import load_benchmark
+        for task in (load_suite()["tasks"][0], load_suite()["tasks"][-1]):
+            rows = [dict(row) for row in self.rows]
+            rows[0] = {"id": 1, "subject": task["subject"],
+                       "question": "  " + task["question"] + " ",
+                       "answer": "تفسير علمي مدقق"}
+            with self.assertRaisesRegex(ValueError, "Evaluation question"):
+                split_examples(rows, seed=42)
+        task = load_benchmark()["tasks"][0]
+        rows = [dict(row) for row in self.rows]
+        rows[0] = {"id": 1, "subject": task["subject"], "question": task["question"],
+                   "answer": "جواب"}
+        with self.assertRaisesRegex(ValueError, "Evaluation question"):
+            split_examples(rows, seed=42)
+
     def test_minimum_examples(self):
         with self.assertRaises(ValueError):
             split_examples(self.rows[:11], seed=42)
