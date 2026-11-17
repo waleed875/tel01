@@ -290,6 +290,12 @@
             <p id="starter-import-note" class="help-text" aria-live="polite">الاستيراد لا يشغّل التدريب ولا يعتمد أي مثال. يمكن تكراره دون نسخ الأمثلة الموجودة.</p>
           </div>
           <div class="panel"><form id="dataset-form"><div class="form-heading"><h3>إضافة مثال علمي جديد</h3><small>بيانات من إعدادك أو لديك حق استخدامها فقط</small></div><label>التخصص<select id="dataset-subject"><option value="math">الرياضيات</option><option value="physics">الفيزياء</option><option value="software">هندسة البرمجيات</option><option value="electronics">هندسة الإلكترونيات</option></select></label><label>السؤال<textarea id="dataset-question" minlength="8" maxlength="1800" rows="2" required placeholder="مثال: كيف نحسب التيار في مقاومة؟"></textarea></label><label>الإجابة العلمية المرجعية<textarea id="dataset-answer" minlength="8" maxlength="5000" rows="4" required placeholder="اشرح القانون والتطبيق والوحدات..."></textarea></label><div class="form-actions"><button type="submit" class="primary-btn" id="save-example">حفظ كمسودة</button><small>لا تستخدم المعلومات الخاصة أو غير المرخصة.</small></div></form></div>
+          <div class="panel">
+            <h3>تصدير الأمثلة المعتمدة إلى جهازك</h3>
+            <p>ينزّل ملف JSON خاصًا بك يحتوي على الأسئلة والإجابات التي راجعتها واعتمدتها فقط. لا يرفعها إلى GitHub ولا يبدأ التدريب تلقائيًا.</p>
+            <button type="button" id="export-approved" class="ghost-btn">تنزيل الأمثلة المعتمدة</button>
+            <p class="help-text">يحتوي الملف على بياناتك العلمية المعتمدة؛ احتفظ به في مكان محلي آمن ولا ترفعه إلى مستودع عام.</p>
+          </div>
           <div class="section-header space-top"><div><h2>أمثلة التدريب المحفوظة <span id="dataset-count" class="count">0</span> <small id="dataset-stats" class="dataset-stats">0 معتمد • 0 مسودة</small></h2></div></div>
           <div id="dataset-list" class="dataset-list"></div>
           <div class="section-header space-top"><div><span class="overline">TRAINING CONTROL</span><h2>تشغيل تدريب جديد</h2></div></div>
