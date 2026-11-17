@@ -6,7 +6,7 @@ No held-out answers are used to optimize model weights.
 from pathlib import Path
 import torch
 from .model import GPT, GPTConfig
-from .tokenizer import ByteTokenizer
+from .tokenizer import tokenizer_from_spec
 
 
 @torch.inference_mode()
@@ -15,12 +15,10 @@ def evaluate_heldout(checkpoint_path: str | Path, examples: list[dict]) -> float
         raise ValueError("A held-out set is required")
     state = torch.load(str(checkpoint_path), map_location="cpu", weights_only=True)
     cfg = GPTConfig(**state["config"])
-    if cfg.vocab_size != 256:
-        raise ValueError("Unexpected tokenizer")
+    tokenizer = tokenizer_from_spec(state.get("tokenizer_spec"), cfg.vocab_size)
     model = GPT(cfg)
     model.load_state_dict(state["model"], strict=True)
     model.eval()
-    tokenizer = ByteTokenizer()
     total = 0.0
     seen = 0
     for example in examples:

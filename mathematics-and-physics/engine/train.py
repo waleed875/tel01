@@ -14,7 +14,8 @@ import random
 import torch
 
 from .model import GPT, GPTConfig
-from .tokenizer import ByteTokenizer
+from .tokenizer import (ByteTokenizer, build_character_tokenizer, tokenizer_spec,
+                        tokenizer_from_spec)
 
 
 def load_corpus(path: Path):
@@ -63,31 +64,49 @@ def train(data: Path, output: Path, steps: int, block_size: int, batch_size: int
           layers: int, heads: int, dim: int, learning_rate: float, seed: int,
           metrics_file: Path | None = None, *, resume: Path | None = None,
           device: str = "auto", grad_accum_steps: int = 1,
-          precision: str = "fp32"):
+          precision: str = "fp32", tokenizer_mode: str = "byte",
+          max_char_tokens: int = 512):
     if min(steps, block_size, batch_size, layers, heads, dim) <= 0 or dim % heads:
         raise ValueError("Invalid training configuration")
     if type(grad_accum_steps) is not int or not 1 <= grad_accum_steps <= 64:
         raise ValueError("Gradient accumulation steps must be 1..64")
     if not (0 < learning_rate <= 1) or not isinstance(seed, int) or seed < 0:
         raise ValueError("Invalid learning rate or seed")
+    if tokenizer_mode not in ("byte", "char"):
+        raise ValueError("Unsupported tokenizer mode")
+    if type(max_char_tokens) is not int or not 1 <= max_char_tokens <= 2048:
+        raise ValueError("max_char_tokens must be 1..2048")
     data = Path(data)
     output = Path(output)
     raw_bytes = data.read_bytes()
     dataset_sha256 = hashlib.sha256(raw_bytes).hexdigest()
-    # Preserve tokenizer behavior and reject invalid/empty data as before.
-    tokens = load_corpus(data)
-    if len(tokens) < block_size * 5:
-        raise ValueError("Need at least 5 * block_size bytes for train/validation")
-    cut = int(0.9 * len(tokens))
-    train_tokens, val_tokens = tokens[:cut], tokens[cut:]
+    if tokenizer_mode == "byte":
+        # Legacy path: keep the exact historical token-level 90/10 split.
+        tokens = load_corpus(data)
+        cut = int(0.9 * len(tokens))
+        train_tokens, val_tokens = tokens[:cut], tokens[cut:]
+        tokenizer = ByteTokenizer()
+    else:
+        # Derive vocabulary from TRAINING TEXT ONLY; separate text boundary
+        # also avoids splitting a UTF-8 character between the two datasets.
+        source = data.read_text(encoding="utf-8")
+        if not source.strip():
+            raise ValueError("Training corpus is empty")
+        cut = int(0.9 * len(source))
+        tokenizer = build_character_tokenizer(source[:cut], max_char_tokens)
+        train_tokens = torch.tensor(tokenizer.encode(source[:cut]), dtype=torch.long)
+        val_tokens = torch.tensor(tokenizer.encode(source[cut:]), dtype=torch.long)
+    if len(train_tokens) + len(val_tokens) < block_size * 5:
+        raise ValueError("Need at least 5 * block_size tokens for train/validation")
     if len(val_tokens) <= block_size:
         raise ValueError("Not enough validation data")
+    spec = tokenizer_spec(tokenizer)
 
     selected_device = choose_device(device)
     selected_precision = select_precision(precision, selected_device)
     torch.manual_seed(seed)
     random.seed(seed)
-    config = GPTConfig(block_size=block_size, vocab_size=256, n_layer=layers,
+    config = GPTConfig(block_size=block_size, vocab_size=tokenizer.vocab_size, n_layer=layers,
                        n_head=heads, n_embd=dim, dropout=0.0, bias=True)
     model = GPT(config).to(selected_device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
@@ -98,6 +117,10 @@ def train(data: Path, output: Path, steps: int, block_size: int, batch_size: int
             raise ValueError("Trusted resume checkpoint not found")
         state = torch.load(resume, map_location=selected_device, weights_only=True)
         _check_resume(state, config, dataset_sha256)
+        # Never reinterpret existing embeddings under a changed vocabulary.
+        tokenizer_from_spec(state.get("tokenizer_spec"), config.vocab_size)
+        if state.get("tokenizer_spec") != spec:
+            raise ValueError("Resume tokenizer specification differs from original")
         if (state.get("seed") != seed or state.get("learning_rate") != learning_rate
                 or state.get("batch_size") != batch_size
                 or state.get("grad_accum_steps", 1) != grad_accum_steps
@@ -172,6 +195,7 @@ def train(data: Path, output: Path, steps: int, block_size: int, batch_size: int
         "seed": seed, "dataset": str(data), "dataset_sha256": dataset_sha256,
         "learning_rate": learning_rate, "batch_size": batch_size, "saved_device": selected_device,
         "grad_accum_steps": grad_accum_steps, "precision": selected_precision,
+        "tokenizer_spec": spec,
         "torch_rng_state": torch.get_rng_state(), "python_rng_state": random.getstate(),
         "cuda_rng_state": torch.cuda.get_rng_state().cpu() if selected_device == "cuda" else None,
     }
@@ -197,9 +221,12 @@ if __name__ == "__main__":
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--precision", choices=("fp32", "bf16", "auto"), default="fp32")
     parser.add_argument("--grad-accum-steps", type=int, default=1)
+    parser.add_argument("--tokenizer", choices=("byte", "char"), default="byte")
+    parser.add_argument("--max-char-tokens", type=int, default=512)
     parser.add_argument("--resume", type=Path, help="Operator-trusted checkpoint from same architecture and data")
     args = parser.parse_args()
     train(args.data, args.output, args.steps, args.block_size, args.batch_size,
           args.layers, args.heads, args.dim, args.learning_rate, args.seed, args.metrics_file,
           resume=args.resume, device=args.device,
-          grad_accum_steps=args.grad_accum_steps, precision=args.precision)
+          grad_accum_steps=args.grad_accum_steps, precision=args.precision,
+          tokenizer_mode=args.tokenizer, max_char_tokens=args.max_char_tokens)
