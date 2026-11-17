@@ -742,6 +742,20 @@ def training_examples(user: Annotated[int, Depends(session_user)],
             "note": "المسودات تحفظ في PostgreSQL فقط ولا تدخل في تدريب النموذج تلقائيًا."}
 
 
+@app.get("/api/datasets/approved/export")
+def export_approved_dataset(user: Annotated[int, Depends(session_user)],
+                            database: Annotated[Storage, Depends(db)]):
+    """Explicit owner-only export. No draft/other-account examples or identifiers."""
+    from fastapi.responses import JSONResponse
+    rows = database.export_approved_training_examples(user)
+    return JSONResponse(
+        content={"version": 1, "examples": rows},
+        headers={"Content-Disposition": 'attachment; filename="approved-engineering.json"',
+                 "Cache-Control": "private, no-store",
+                 "X-Content-Type-Options": "nosniff"},
+    )
+
+
 @app.post("/api/datasets/starter/import", status_code=201)
 def import_starter_pack(user: Annotated[int, Depends(session_user)],
                         database: Annotated[Storage, Depends(db)]):
