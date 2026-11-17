@@ -215,6 +215,18 @@ class Storage:
             ).fetchone()
             return {"draft": result["draft"], "approved": result["approved"]}
 
+    def export_approved_training_examples(self, user_id: int) -> list[dict]:
+        """Private, owner-scoped snapshot without database IDs or metadata."""
+        with self._connect() as db:
+            rows = db.execute(
+                """SELECT subject, question, answer FROM training_examples
+                   WHERE user_id=%s AND status='approved'
+                   ORDER BY id ASC""",
+                (user_id,),
+            ).fetchall()
+        return [{"subject": row["subject"], "question": row["question"],
+                 "answer": row["answer"]} for row in rows]
+
     def approved_training_examples(self, user_id: int):
         with self._connect() as db:
             return db.execute(
