@@ -1123,6 +1123,24 @@ function initBindings(){
   $("file-upload-form").addEventListener("submit",uploadProjectFile);
   $("site-search").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();findLocal(e.target.value);}});
   document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();$("site-search").focus();}});
+  $("export-approved").addEventListener("click",async()=>{
+    const btn=$("export-approved");
+    btn.disabled=true;
+    try{
+      const data=await api("datasets/approved/export");
+      if(!Array.isArray(data.examples)||!data.examples.length){
+        toast("لا توجد أمثلة معتمدة للتصدير");return;
+      }
+      const file=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+      const url=URL.createObjectURL(file);
+      const link=document.createElement("a");
+      link.href=url;link.download="approved-engineering.json";
+      document.body.append(link);link.click();link.remove();
+      URL.revokeObjectURL(url);
+      toast("تم تجهيز ملف الأمثلة المعتمدة. احتفظ به محليًا.");
+    }catch(err){toast(err.message);}
+    finally{btn.disabled=false;}
+  });
   $("import-starter").addEventListener("click",async()=>{
     const btn=$("import-starter");
     if(!confirm("سيتم إدراج 24 مثالًا تأسيسيًا كمسودات فقط، تحتاج إلى مراجعة كل مثال قبل اعتماده. متابعة؟"))return;
