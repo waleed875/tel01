@@ -19,6 +19,7 @@ from questions import BY_ID, select_question
 from storage import Storage
 from tutor import Tutor, LEVEL_NAMES, SUBJECT_NAMES
 from engineering_domains import catalog as domain_catalog
+from foundation_dataset import load_starter
 from engineering_calculators import get_catalog as calculator_catalog, calculate as calculate_engineering
 from engineering_tool_proposals import propose as propose_tool, approved_calculate
 from gitea_client import GiteaClient, GiteaError, MAX_FILE_BYTES, validate_path
@@ -739,6 +740,17 @@ def training_examples(user: Annotated[int, Depends(session_user)],
                       database: Annotated[Storage, Depends(db)]):
     return {"examples": database.training_examples(user, 100),
             "note": "المسودات تحفظ في PostgreSQL فقط ولا تدخل في تدريب النموذج تلقائيًا."}
+
+
+@app.post("/api/datasets/starter/import", status_code=201)
+def import_starter_pack(user: Annotated[int, Depends(session_user)],
+                        database: Annotated[Storage, Depends(db)]):
+    """Explicit, authenticated, CSRF-protected import; drafts only, no training."""
+    try:
+        examples = load_starter()
+        return database.import_starter_drafts(user, examples)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.patch("/api/datasets/{example_id}/review")

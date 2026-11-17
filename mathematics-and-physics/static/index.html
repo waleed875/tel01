@@ -283,6 +283,12 @@
 
         <section class="view hidden" id="view-datasets">
           <div class="panel-head"><div><span class="overline">DATA PIPELINE</span><h2>إدارة بيانات التدريب</h2><p>أضف أمثلة سؤال وجواب وراجع دقتها قبل اعتمادها للتدريب. اعتماد المثال لا يبدأ التدريب تلقائيًا.</p></div><span class="status-pill">مسودات فقط</span></div>
+          <div class="panel">
+            <h3>مجموعة أمثلة تأسيسية اختيارية</h3>
+            <p>24 مثالًا عربيًا تعليميًا، 6 لكل تخصص. أمثلة أولية تحتاج مراجعتك العلمية قبل الاعتماد، وليست بيانات تدريب معتمدة مسبقًا.</p>
+            <button id="import-starter" type="button" class="ghost-btn">استيراد الأمثلة كمسودات للمراجعة</button>
+            <p id="starter-import-note" class="help-text" aria-live="polite">الاستيراد لا يشغّل التدريب ولا يعتمد أي مثال. يمكن تكراره دون نسخ الأمثلة الموجودة.</p>
+          </div>
           <div class="panel"><form id="dataset-form"><div class="form-heading"><h3>إضافة مثال علمي جديد</h3><small>بيانات من إعدادك أو لديك حق استخدامها فقط</small></div><label>التخصص<select id="dataset-subject"><option value="math">الرياضيات</option><option value="physics">الفيزياء</option><option value="software">هندسة البرمجيات</option><option value="electronics">هندسة الإلكترونيات</option></select></label><label>السؤال<textarea id="dataset-question" minlength="8" maxlength="1800" rows="2" required placeholder="مثال: كيف نحسب التيار في مقاومة؟"></textarea></label><label>الإجابة العلمية المرجعية<textarea id="dataset-answer" minlength="8" maxlength="5000" rows="4" required placeholder="اشرح القانون والتطبيق والوحدات..."></textarea></label><div class="form-actions"><button type="submit" class="primary-btn" id="save-example">حفظ كمسودة</button><small>لا تستخدم المعلومات الخاصة أو غير المرخصة.</small></div></form></div>
           <div class="section-header space-top"><div><h2>أمثلة التدريب المحفوظة <span id="dataset-count" class="count">0</span> <small id="dataset-stats" class="dataset-stats">0 معتمد • 0 مسودة</small></h2></div></div>
           <div id="dataset-list" class="dataset-list"></div>

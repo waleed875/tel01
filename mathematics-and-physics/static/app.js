@@ -1123,6 +1123,17 @@ function initBindings(){
   $("file-upload-form").addEventListener("submit",uploadProjectFile);
   $("site-search").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();findLocal(e.target.value);}});
   document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();$("site-search").focus();}});
+  $("import-starter").addEventListener("click",async()=>{
+    const btn=$("import-starter");
+    if(!confirm("سيتم إدراج 24 مثالًا تأسيسيًا كمسودات فقط، تحتاج إلى مراجعة كل مثال قبل اعتماده. متابعة؟"))return;
+    btn.disabled=true;
+    try{
+      const result=await api("datasets/starter/import",{method:"POST"});
+      $("starter-import-note").textContent="تم إدراج "+result.inserted+" مسودة جديدة، وتخطي "+result.skipped+" مثالًا موجودًا. لم يبدأ أي تدريب.";
+      await loadExamples();
+    }catch(err){$("starter-import-note").textContent="تعذر الاستيراد: "+err.message;}
+    finally{btn.disabled=false;}
+  });
   $("training-form").addEventListener("submit",startTraining);
   $("refresh-training").addEventListener("click",()=>{renderTrainingJobs();loadCleanupStatus();});
   $("request-training-cleanup").addEventListener("click",requestTrainingCleanup);
